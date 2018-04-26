@@ -14,13 +14,19 @@ IUSE="$IUSE test nls vanilla doc multilib altivec libssp +ssp +pie +pch hardened
 
 SLOT="${PV}"
 
-GENTOO_PATCH_VER="1.2"
-GENTOO_GCC_PATCH_VER="7.3.0"
-GENTOO_PATCH_A="gcc-${GENTOO_GCC_PATCH_VER}-patches-${GENTOO_PATCH_VER}.tar.bz2"
+# Version of archive before patches.
+GCC_ARCHIVE_VER="7.3.0"
+
+# GCC release archive
+GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_PATCH="gcc-7.3.0-svn259627.patch"
+GCC_SVN_PATCH="gcc-${GCC_ARCHIVE_VER}-svn259627.patch"
 
+# Gentoo patcheset
+GENTOO_PATCH_VER="1.2"
+GENTOO_GCC_PATCH_VER="${GCC_ARCHIVE_VER}"
+GENTOO_PATCH_A="gcc-${GENTOO_GCC_PATCH_VER}-patches-${GENTOO_PATCH_VER}.tar.bz2"
 # This is fixed by the svn patch
 EPATCH_EXCLUDE="91_all_bmi-i386-PR-target-81763.patch"
 
@@ -34,8 +40,7 @@ MPC_VER="1.1.0"
 CLOOG_VER="0.18.4"
 ISL_VER="0.19"
 
-GCC_A="gcc-${PV}.tar.xz"
-SRC_URI="mirror://gnu/gcc/gcc-${PV}/${GCC_A}"
+SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
 SRC_URI="$SRC_URI http://www.mpfr.org/mpfr-${MPFR_VER}/mpfr-${MPFR_VER}.tar.xz"
 SRC_URI="$SRC_URI mirror://gnu/gmp/gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz"
@@ -110,6 +115,7 @@ pkg_setup() {
 
 src_unpack() {
 	unpack $GCC_A
+	mv "gcc-${GCC_ARCHIVE_VER}" "${S}"
 	( unpack mpc-${MPC_VER}.tar.gz && mv ${WORKDIR}/mpc-${MPC_VER} ${S}/mpc ) || die "mpc setup fail"
 	( unpack mpfr-${MPFR_VER}.tar.xz && mv ${WORKDIR}/mpfr-${MPFR_VER} ${S}/mpfr ) || die "mpfr setup fail"
 	( unpack gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz && mv ${WORKDIR}/gmp-${GMP_VER} ${S}/gmp ) || die "gmp setup fail"
