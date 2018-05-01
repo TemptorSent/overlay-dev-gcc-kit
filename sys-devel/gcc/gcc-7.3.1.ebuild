@@ -38,7 +38,7 @@ MPC_VER="1.1.0"
 
 # Graphite support:
 CLOOG_VER="0.18.4"
-ISL_VER="0.19"
+ISL_VER="0.16.1"
 
 SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
