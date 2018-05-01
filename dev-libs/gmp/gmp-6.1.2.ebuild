@@ -16,9 +16,9 @@ SRC_URI="ftp://ftp.gmplib.org/pub/${MY_P}/${MY_P}.tar.xz
 
 LICENSE="|| ( LGPL-3+ GPL-2+ )"
 # The subslot reflects the C & C++ SONAMEs.
-SLOT="0/10.3"
+SLOT="0/10.4"
 KEYWORDS="*"
-IUSE="+asm doc cxx pgo +static-libs"
+IUSE="+asm doc +cxx +static-libs"
 
 DEPEND="sys-devel/m4
 	app-arch/xz-utils"
@@ -86,7 +86,8 @@ multilib_src_configure() {
 multilib_src_compile() {
 	emake
 
-	if use pgo ; then
+	# The tuning routines appear to be broken currently, disabled
+	if false ; then
 		emake -j1 -C tune tuneup
 		ebegin "Trying to generate tuned data"
 		./tune/tuneup | tee gmp.mparam.h.new
