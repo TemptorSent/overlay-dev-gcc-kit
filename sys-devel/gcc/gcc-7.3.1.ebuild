@@ -9,8 +9,12 @@ inherit multilib-build eutils pax-utils toolchain-enable
 RESTRICT="strip"
 FEATURES=${FEATURES/multilib-strict/}
 
-IUSE="ada +cxx go +fortran objc objc++ objc-gc openmp" # languages
-IUSE="$IUSE test nls vanilla doc multilib altivec libssp +ssp +pie +pch hardened graphite sanitize dev_extra_warnings" # other stuff
+IUSE="ada +cxx go +fortran objc objc++ objc-gc" # Languages
+IUSE="$IUSE test doc nls vanilla hardened multilib" # testing/docs/i18n/system flags
+IUSE="$IUSE openmp altivec graphite +pch" # Optimizations/features flags
+IUSE="$IUSE libssp +ssp" # Base hardening flags
+IUSE="$IUSE +pie esp stack_check link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 SLOT="${PV}"
 
@@ -28,7 +32,7 @@ GENTOO_PATCH_VER="1.2"
 GENTOO_GCC_PATCH_VER="${GCC_ARCHIVE_VER}"
 GENTOO_PATCH_A="gcc-${GENTOO_GCC_PATCH_VER}-patches-${GENTOO_PATCH_VER}.tar.bz2"
 # This is fixed by the svn patch
-EPATCH_EXCLUDE="91_all_bmi-i386-PR-target-81763.patch"
+EPATCH_EXCLUDE="91_all_bmi-i386-PR-target-81763.patch 55_all_extra-options.patch"
 
 # Math libs
 GMP_VER="6.1.2"
@@ -146,6 +150,8 @@ p_apply() {
 
 src_prepare() {
 	p_apply "${FILESDIR}/${GCC_SVN_PATCH}"
+#	p_apply "${FILESDIR}/55_all_extra-options.patch"
+
 	( use vanilla && use hardened ) \
 		&& die "vanilla and hardened USE flags are incompatible. Disable one of them"
 
@@ -186,21 +192,37 @@ src_prepare() {
 			epatch "${WORKDIR}"/patch
 		fi
 
-		# Hardened patches
-		if use hardened; then
-			local gcc_hard_flags="-DEXTRA_OPTIONS"
+		# Harden things up:
+
+		# Fix signed integer overflow insanity:
+		sed -e '/{ OPT_LEVELS_2_PLUS, OPT_fstrict_overflow, NULL, 1 }/ d' -i gcc/opts.c
+		# Prevent breakage if -fstack-check has been set to default on
+		sed -e 's/$(INHIBIT_LIBC_CFLAGS)/-fstack-check=no &/' -i libgcc/Makefile.in
+		# Allow -fstack-protector-all to be enabled by default with appropriate defines
+		sed -e 's/#ifdef ENABLE_DEFAULT_SSP/&\n# ifdef ENABLE_DEFAULT_SSP_ALL\n#  define DEFAULT_FLAGS_SSP 2\n# endif/' -i gcc/defaults.h
+		# Setup specs to allow default -fstack-check and link-now (-z now) to be enabled with defines
+		sed \
+			-e 's/#ifdef ENABLE_DEFAULT_PIE/#define STACK_CHECK_SPEC "%{fstack-check|fstack-check=*:;: -fstack-check} "\n#ifdef ENABLE_DEFAULT_LINK_NOW\n#define LINK_NOW_SPEC "%{!nonow:-z now} "\n#else\n#define LINK_NOW_SPEC ""\n#endif\n&/' \
+			-e 's/%{flto} %{fno-lto} %{flto=*} %l " LINK_PIE_SPEC/& LINK_NOW_SPEC/' \
+			-e 's/\(static const char *cc1_spec = CC1_SPEC\);/#ifdef ENABLE_DEFAULT_STACK_CHECK\n\1 STACK_CHECK_SPEC;\n#else\n\1;\n#endif/' \
+			-i gcc/gcc.c
+
+		# Selectively enable features from above hardened patches
+		local gcc_hard_flags=""
+		use stack_check && gcc_hard_flags+=" -DENABLE_DEFAULT_STACK_CHECK"
+		use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+		use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
 
 
-			sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
-				-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
-				-i "${S}"/gcc/Makefile.in
+		sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
+			-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
+			-i "${S}"/gcc/Makefile.in
 
-			sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
-				-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
-				-i "${S}"/gcc/Makefile.in
+		sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
+			-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
+			-i "${S}"/gcc/Makefile.in
 
-			sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
-		fi
+		sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
 	fi
 
 	# Ada gnat compiler bootstrap preparation
@@ -260,7 +282,7 @@ src_configure() {
 	fi
 	confgcc+=" $(use_enable openmp libgomp)"
 	confgcc+=" --enable-languages=${GCC_LANG} --disable-libgcj"
-	confgcc+=" $(use_enable hardened esp)"
+	confgcc+=" $(use_enable esp esp)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
@@ -353,7 +375,7 @@ src_configure() {
 		$(use_with graphite cloog) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
-		--enable-stage1-checking=yes \
+		--enable-stage1-checking=all \
 		--enable-checking=release \
 		$confgcc \
 		|| die "configure fail"
