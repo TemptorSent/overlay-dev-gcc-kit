@@ -12,7 +12,7 @@ FEATURES=${FEATURES/multilib-strict/}
 IUSE="ada +cxx go +fortran objc objc++ objc-gc" # Languages
 IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
-IUSE="$IUSE openmp altivec graphite +pch" # Optimizations/features flags
+IUSE="$IUSE openmp altivec graphite +pch generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
 IUSE="$IUSE +pie esp stack_check link_now ssp_all" # Extra hardening flags
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
@@ -120,6 +120,15 @@ is_crosscompile() {
 }
 
 pkg_setup() {
+	# Capture -march -mcpu and -mtune options to pass to build later.
+	MARCH="$(printf -- "${CFLAGS}" | sed -rne 's/.*-march="?([-_[:alnum:]]+).*/\1/p')"
+	MCPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mcpu="?([-_[:alnum:]]+).*/\1/p')"
+	MTUNE="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mtune="?([-_[:alnum:]]+).*/\1/p')"
+	einfo "Got CFLAGS: ${CFLAGS}"
+	einfo "MARCH: ${MARCH}"
+	einfo "MCPU ${MCPU}"
+	einfo "MTUNE: ${MTUNE}"
+
 	# Don't pass cflags/ldflags through.
 	unset CFLAGS
 	unset CXXFLAGS
@@ -394,6 +403,7 @@ src_configure() {
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
+       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}"
 		#--with-system-zlib \
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
