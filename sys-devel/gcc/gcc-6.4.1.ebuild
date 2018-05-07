@@ -598,8 +598,8 @@ src_install() {
 	linkify_compiler_binaries
 	tasteful_stripping
 	if is_crosscompile; then
-		rm -rf "${D}"/usr/share/{man,info}
-		rm -rf "${D}"${DATAPATH}/{man,info}
+		rm -rf "${D%/}/usr/share"/{man,info}
+		rm -rf "${D}${DATAPATH}"/{man,info}
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \;
 		doc_cleanups
@@ -609,8 +609,8 @@ src_install() {
 
 	# replace gcc_movelibs - currently handles only libcc1:
 
-	rm ${D}/usr/$(get_libdir)/*.la
-	mv ${D}/usr/$(get_libdir)/* ${D}${LIBPATH}/
+	rm ${D%/}/usr/lib*/*.la
+	mv ${D%/}/usr/lib*/* ${D}${LIBPATH}/
 
 	# the .la files that are installed have weird embedded single quotes around abs
 	# paths on the dependency_libs line. The following code finds and fixes them:
