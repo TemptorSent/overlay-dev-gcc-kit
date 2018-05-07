@@ -149,7 +149,7 @@ p_apply() {
 }
 
 src_prepare() {
-	p_apply "${FILESDIR}/${GCC_SVN_PATCH}"
+	p_apply "${FILESDIR}/svn-patches/${GCC_SVN_PATCH}"
 #	p_apply "${FILESDIR}/55_all_extra-options.patch"
 
 	( use vanilla && use hardened ) \
