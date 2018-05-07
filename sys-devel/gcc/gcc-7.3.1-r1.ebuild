@@ -613,8 +613,8 @@ src_install() {
 
 	# replace gcc_movelibs - currently handles only libcc1:
 
-	rm ${D%/}/usr/lib*/*.la
-	mv ${D%/}/usr/lib*/* ${D}${LIBPATH}/
+	rm ${D%/}/usr/lib{,32,64}/*.la
+	mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
 
 	# the .la files that are installed have weird embedded single quotes around abs
 	# paths on the dependency_libs line. The following code finds and fixes them:
