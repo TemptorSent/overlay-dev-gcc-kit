@@ -2,51 +2,84 @@
 
 # See README.txt for usage notes.
 
-EAPI=5
+EAPI=6
 
 inherit multilib-build eutils pax-utils toolchain-enable
 
 RESTRICT="strip"
 FEATURES=${FEATURES/multilib-strict/}
 
-IUSE="ada +cxx go +fortran objc objc++ objc-gc openmp" # languages
-IUSE="$IUSE test nls vanilla doc multilib altivec libssp +ssp +pie +pch hardened graphite sanitize dev_extra_warnings" # other stuff
+IUSE="ada +cxx go +fortran objc objc++ objc-gc" # Languages
+IUSE="$IUSE test" # Run tests
+IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
+IUSE="$IUSE openmp altivec graphite +pch" # Optimizations/features flags
+IUSE="$IUSE libssp +ssp" # Base hardening flags
+IUSE="$IUSE +pie esp stack_check link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
+
+# Stage 1 internal self checking
+IUSE="$IUSE stage1_checking_no" # No internal checks.
+IUSE="$IUSE stage1_checking_release stage1_checking_assert stage1_checking_runtime" # Cheap internal checking only.
+IUSE="$IUSE +stage1_checking_yes stage1_checking_misc stage1_checking_tree stage1_checking_gc stage1_checking_rtlflag" # More checks, but reasonably fast.
+IUSE="$IUSE stage1_checking_all stage1_checking_df stage1_checking_fold stage1_checking_gcac stage1_checking_rtl" # Very expensive checks.
+IUSE="$IUSE stage1_checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
+IUSE="$IUSE stage1_checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
+# Final compiler internal self checking
+IUSE="$IUSE checking_no" # No internal checks.
+IUSE="$IUSE +checking_release checking_assert checking_runtime" # Cheap internal checking only.
+IUSE="$IUSE checking_yes checking_misc checking_tree checking_gc checking_rtlflag" # More checks, but reasonably fast.
+IUSE="$IUSE checking_all checking_df checking_fold checking_gcac checking_rtl" # Very expensive checks.
+IUSE="$IUSE checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
+IUSE="$IUSE checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
+
 
 SLOT="${PV}"
 
 # Version of archive before patches.
 GCC_ARCHIVE_VER="8.1.0"
+GCC_SVN_REV="259991"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
+SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_PATCH="gcc-${GCC_ARCHIVE_VER}-svn259627.patch"
+GCC_SVN_PATCH="${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
 
 # Gentoo patcheset
-GENTOO_PATCH_VER="1.1"
-GENTOO_GCC_PATCH_VER="${GCC_ARCHIVE_VER}"
-GENTOO_PATCH_A="gcc-${GENTOO_GCC_PATCH_VER}-patches-${GENTOO_PATCH_VER}.tar.bz2"
-# This is fixed by the svn patch
-EPATCH_EXCLUDE="91_all_bmi-i386-PR-target-81763.patch"
+GENTOO_PATCHES_VER="1.1"
+GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
+GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
+GENTOO_PATCHES=(
+	10_all_default-fortify-source.patch
+#	11_all_default-warn-format-security.patch
+#	12_all_default-warn-trampolines.patch
+	13_all_default-ssp-fix.patch
+	25_all_alpha-mieee-default.patch
+	34_all_ia64_note.GNU-stack.patch
+	35_all_i386_libgcc_note.GNU-stack.patch
+	50_all_libiberty-asprintf.patch
+	51_all_libiberty-pic.patch
+	54_all_nopie-all-flags.patch
+#	55_all_extra-options.patch
+	90_all_pr55930-dependency-tracking.patch
+	92_all_sh-drop-sysroot-suffix.patch
+)
 
-# Math libs
+# Math libraries:
 GMP_VER="6.1.2"
 GMP_EXTRAVER=""
+SRC_URI="$SRC_URI mirror://gnu/gmp/gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz"
+
 MPFR_VER="4.0.1"
+SRC_URI="$SRC_URI http://www.mpfr.org/mpfr-${MPFR_VER}/mpfr-${MPFR_VER}.tar.xz"
+
 MPC_VER="1.1.0"
+SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
 
 # Graphite support:
 CLOOG_VER="0.18.4"
 ISL_VER="0.18"
-
-SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
-SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
-SRC_URI="$SRC_URI http://www.mpfr.org/mpfr-${MPFR_VER}/mpfr-${MPFR_VER}.tar.xz"
-SRC_URI="$SRC_URI mirror://gnu/gmp/gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz"
-SRC_URI="$SRC_URI http://gentoo.osuosl.org/distfiles/${GENTOO_PATCH_A}"
-
-# Graphite support:
 SRC_URI="$SRC_URI graphite? ( http://www.bastoul.net/cloog/pages/download/count.php3?url=./cloog-${CLOOG_VER}.tar.gz http://isl.gforge.inria.fr/isl-${ISL_VER}.tar.xz )"
 
 # Ada Support:
@@ -125,10 +158,6 @@ src_unpack() {
 		( unpack isl-${ISL_VER}.tar.xz && mv ${WORKDIR}/isl-${ISL_VER} ${S}/isl ) || die "isl setup fail"
 	fi
 
-	if [ -n $GENTOO_PATCH_VER ]; then
-		unpack ${GENTOO_PATCH_A}
-	fi
-
 	if use ada && use amd64; then
 		unpack $GNAT64 || die "ada setup failed"
 	elif use ada && use x86; then
@@ -139,13 +168,14 @@ src_unpack() {
 	mkdir ${WORKDIR}/objdir
 }
 
-p_apply() {
-	einfo "Applying ${1##*/}..."
-	patch -p1 < $1 > /dev/null || die "Failed applying $1"
+eapply_gentoo() {
+	eapply "${GENTOO_PATCHES_DIR}/${1}"
 }
 
 src_prepare() {
-	#p_apply "${FILESDIR}/${GCC_SVN_PATCH}"
+	# Patch from release to svn branch tip for backports
+	eapply "${GCC_SVN_PATCH}"
+
 	( use vanilla && use hardened ) \
 		&& die "vanilla and hardened USE flags are incompatible. Disable one of them"
 
@@ -168,39 +198,56 @@ src_prepare() {
 		# libgcc_s.so. See: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=32415.
 		# So, we apply a small patch to get this working:
 
-		cat "${FILESDIR}"/gcc-4.6.4-fix-libgcc-s-path-with-vsrl.patch | patch -p1 || die "patch fail"
+		eapply "${FILESDIR}/gcc-4.6.4-fix-libgcc-s-path-with-vsrl.patch" || die "patch fail"
 
-		if ! use dev_extra_warnings ; then
-			EPATCH_EXCLUDE+=" 11_all_default-warn-format-security.patch"
-			EPATCH_EXCLUDE+=" 12_all_default-warn-trampolines.patch"
-		elif use test ; then
-			ewarn "USE=dev_extra_warnings enables warnings by default which are known to break gcc's tests!"
-		else
+		if use dev_extra_warnings ; then
+			eapply_gentoo "11_all_default-warn-format-security.patch"
+			eapply_gentoo "12_all_default-warn-trampolines.patch"
+			if use test ; then
+				ewarn "USE=dev_extra_warnings enables warnings by default which are known to break gcc's tests!"
+			fi
 			einfo "Additional warnings enabled by default, this may break some tests and compilations with -Werror."
 		fi
 
-		is_crosscompile && EPATCH_EXCLUDE+=" 05_all_gcc-spec-env.patch"
 		if [ -n "$GENTOO_PATCH_VER" ]; then
-			EPATCH_MULTI_MSG="Applying Gentoo patches ..." \
-			EPATCH_SUFFIX="patch" \
-			epatch "${WORKDIR}"/patch
+			einfo "Applying Gentoo patches ..."
+			for my_patch in ${GENTOO_PATCHES[*]} ; do
+				einfo "    ${my_patch}"
+				eapply_gentoo "${my_patch}"
+			done
 		fi
 
-		# Hardened patches
-		if use hardened; then
-			local gcc_hard_flags="-DEXTRA_OPTIONS"
+		# Harden things up:
+
+		# Fix signed integer overflow insanity:
+		sed -e '/{ OPT_LEVELS_2_PLUS, OPT_fstrict_overflow, NULL, 1 }/ d' -i gcc/opts.c
+		# Prevent breakage if -fstack-check has been set to default on
+		sed -e 's/$(INHIBIT_LIBC_CFLAGS)/-fstack-check=no &/' -i libgcc/Makefile.in
+		# Allow -fstack-protector-all to be enabled by default with appropriate defines
+		sed -e 's/#ifdef ENABLE_DEFAULT_SSP/&\n# ifdef ENABLE_DEFAULT_SSP_ALL\n#  define DEFAULT_FLAGS_SSP 2\n# endif/' -i gcc/defaults.h
+		# Setup specs to allow default -fstack-check and link-now (-z now) to be enabled with defines
+		sed \
+			-e 's/#ifdef ENABLE_DEFAULT_PIE/#define STACK_CHECK_SPEC "%{fstack-check|fstack-check=*:;: -fstack-check} "\n#ifdef ENABLE_DEFAULT_LINK_NOW\n#define LINK_NOW_SPEC "%{!nonow:-z now} "\n#else\n#define LINK_NOW_SPEC ""\n#endif\n&/' \
+			-e 's/%{flto} %{fno-lto} %{flto=*} %l " LINK_PIE_SPEC/& LINK_NOW_SPEC/' \
+			-e 's/\(static const char *cc1_spec = CC1_SPEC\);/#ifdef ENABLE_DEFAULT_STACK_CHECK\n\1 STACK_CHECK_SPEC;\n#else\n\1;\n#endif/' \
+			-i gcc/gcc.c
+
+		# Selectively enable features from above hardened patches
+		local gcc_hard_flags=""
+		use stack_check && gcc_hard_flags+=" -DENABLE_DEFAULT_STACK_CHECK"
+		use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+		use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
 
 
-			sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
-				-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
-				-i "${S}"/gcc/Makefile.in
+		sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
+			-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
+			-i "${S}"/gcc/Makefile.in
 
-			sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
-				-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
-				-i "${S}"/gcc/Makefile.in
+		sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
+			-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
+			-i "${S}"/gcc/Makefile.in
 
-			sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
-		fi
+		sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
 	fi
 
 	# Ada gnat compiler bootstrap preparation
@@ -211,6 +258,88 @@ src_prepare() {
 		make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
 		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
 	fi
+
+	# Must be called in src_prepare by EAPI6
+	eapply_user
+}
+
+gcc_conf_lang_opts() {
+	# Determine language support:
+	local conf_gcc_lang=""
+	local GCC_LANG="c,c++"
+	if use objc; then
+		GCC_LANG+=",objc"
+		use objc-gc && conf_gcc_lang+=" --enable-objc-gc"
+		use objc++ && GCC_LANG+=",obj-c++"
+	fi
+
+	use fortran && GCC_LANG+=",fortran" || conf_gcc_lang+=" --disable-libquadmath"
+
+	use go && GCC_LANG+=",go"
+
+	if use ada; then
+		GCC_LANG+=",ada"
+		export PATH="${S}/gnatboot/bin:${PATH}"
+	fi
+	
+	conf_gcc_lang+=" --enable-languages=${GCC_LANG} --disable-libgcj"
+
+	printf -- "${conf_gcc_lang}"
+}
+
+gcc_conf_arm_opts() {
+	# ARM
+	local conf_gcc_arm=""
+	if [[ ${CTARGET} == arm* ]] ; then
+		local a arm_arch=${CTARGET%%-*}
+		# Remove trailing endian variations first: eb el be bl b l
+		for a in e{b,l} {b,l}e b l ; do
+			if [[ ${arm_arch} == *${a} ]] ; then
+				arm_arch=${arm_arch%${a}}
+				break
+			fi
+		done
+
+		# Convert armv7{a,r,m} to armv7-{a,r,m}
+		local arm_arch_without_dash=${arm_arch}
+		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
+		# See if this is a valid --with-arch flag
+		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
+			. "${srcdir}"/config.gcc) &>/dev/null
+		then
+			conf_gcc_arm+=" --with-arch=${arm_arch}"
+		fi
+
+		# Enable hardvfp
+		local float
+		local CTARGET_TMP=${CTARGET:-${CHOST}}
+		if [[ ${CTARGET_TMP//_/-} == *-softfloat-* ]] ; then
+			float="soft"
+		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
+			float="softfp"
+		else
+			if [[ ${CTARGET} == armv[67]* ]]; then
+				case ${CTARGET} in
+					armv6*)
+						conf_gcc_arm+=" --with-fpu=vfp"
+					;;
+					armv7*)
+						realfpu=$( echo ${CFLAGS} | sed 's/.*mfpu=\([^ ]*\).*/\1/')
+						if [[ "$realfpu" == "$CFLAGS" ]] ;then
+							# if sed fails to extract, then it's not set, use default:
+							conf_gcc_arm+=" --with-fpu=vfpv3-d16"
+						else
+							conf_gcc_arm+=" --with-fpu=${realfpu}"
+						fi
+					;;
+				esac
+			fi
+			float="hard"
+		fi
+		conf_gcc_arm+=" --with-float=$float"
+	fi
+
+	printf -- "${conf_gcc_arm}"
 }
 
 src_configure() {
@@ -245,79 +374,15 @@ src_configure() {
 		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix $(use_enable openmp libgomp)"
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	# Determine language support:
-	local GCC_LANG="c,c++"
-	if use objc; then
-		GCC_LANG+=",objc"
-		use objc-gc && confgcc+=" --enable-objc-gc"
-		use objc++ && GCC_LANG+=",obj-c++"
-	fi
-	use fortran && GCC_LANG+=",fortran" || confgcc+=" --disable-libquadmath"
-	use go && GCC_LANG+=",go"
-	if use ada; then
-		GCC_LANG+=",ada"
-		export PATH="${S}/gnatboot/bin:${PATH}"
-	fi
 	confgcc+=" $(use_enable openmp libgomp)"
-	confgcc+=" --enable-languages=${GCC_LANG} --disable-libgcj"
-	confgcc+=" $(use_enable hardened esp)"
+	confgcc+=" $(use_enable esp esp)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
 	! use pch && confgcc+=" --disable-libstdcxx-pch"
-	use graphite && confgcc+=" --disable-isl-version-check"
+	#use graphite && confgcc+=" --disable-isl-version-check"
 
 	use libssp || export gcc_cv_libc_provides_ssp=yes
-
-	# ARM
-	if [[ ${CTARGET} == arm* ]] ; then
-		local a arm_arch=${CTARGET%%-*}
-		# Remove trailing endian variations first: eb el be bl b l
-		for a in e{b,l} {b,l}e b l ; do
-			if [[ ${arm_arch} == *${a} ]] ; then
-				arm_arch=${arm_arch%${a}}
-				break
-			fi
-		done
-
-		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		local arm_arch_without_dash=${arm_arch}
-		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
-		# See if this is a valid --with-arch flag
-		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
-		then
-			confgcc+=" --with-arch=${arm_arch}"
-		fi
-
-		# Enable hardvfp
-		local float
-		local CTARGET_TMP=${CTARGET:-${CHOST}}
-		if [[ ${CTARGET_TMP//_/-} == *-softfloat-* ]] ; then
-			float="soft"
-		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
-			float="softfp"
-		else
-			if [[ ${CTARGET} == armv[67]* ]]; then
-				case ${CTARGET} in
-					armv6*)
-						confgcc+=" --with-fpu=vfp"
-					;;
-					armv7*)
-						realfpu=$( echo ${CFLAGS} | sed 's/.*mfpu=\([^ ]*\).*/\1/')
-						if [[ "$realfpu" == "$CFLAGS" ]] ;then
-							# if sed fails to extract, then it's not set, use default:
-							confgcc+=" --with-fpu=vfpv3-d16"
-						else
-							confgcc+=" --with-fpu=${realfpu}"
-						fi
-					;;
-				esac
-			fi
-			float="hard"
-		fi
-		confgcc+=" --with-float=$float"
-	fi
 
 	local branding="Funtoo"
 	if use hardened; then
@@ -327,13 +392,13 @@ src_configure() {
 	fi
 
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
-	use nls && confgcc+=" --enable-nls --without-included-gettext" || confgcc+=" --disable-nls"
+	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
+		#--with-system-zlib \
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
 		--enable-version-specific-runtime-libs \
-		--enable-libmudflap \
 		--prefix=${PREFIX} \
 		--bindir=${BINPATH} \
 		--includedir=${LIBPATH}/include \
@@ -345,17 +410,17 @@ src_configure() {
 		--enable-__cxa_atexit \
 		--enable-clocale=gnu \
 		--host=$CHOST \
-		--with-system-zlib \
 		--enable-obsolete \
 		--disable-werror \
+		--enable-libmudflap \
 		--enable-secureplt \
 		--enable-lto \
 		$(use_with graphite cloog) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
-		--enable-stage1-checking=all \
-		--enable-checking=release \
-		$confgcc \
+		--enable-stage1-checking=$(gcc_checking_opts stage1) \
+		--enable-checking=$(gcc_checking_opts) \
+		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
 	#	--with-mpfr-include=${S}/mpfr/src \
@@ -585,4 +650,37 @@ pkg_postinst() {
 	cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null
 
 	compiler_auto_enable ${PV} ${CTARGET}
+}
+
+
+
+# GCC internal self checking options
+# Usage: gcc_checking_opts [stage1]
+gcc_checking_opts() {
+	local CHECKING_RELEASE="assert,runtime"
+	local CHECKING_YES="${CHECKING_RELEASE},misc,tree,gc,rtlflag"
+	local CHECKING_ALL="${CHECKING_YES},df,fold,gcac,rtl,extra"
+	local stage1="${1}${1:+_}"
+
+	if use ${stage1}checking_no ; then
+		opts="no"
+	else
+		if use ${stage1}checking_all ; then
+			opts="${CHECKING_ALL}"
+		elif use ${stage1}checking_yes ; then
+			opts="${CHECKING_YES}"
+		elif use ${stage1}checking_release ; then
+			opts="${CHECKING_RELEASE}"
+		fi
+		for check in assert df fold gc gcac misc rtl rtlflag runtime tree extra valgrind ; do
+			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
+			if use ${stage1}checking_${check} || ( [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
+				if [ -z "$(echo "${opts}" | awk 'BEGIN {RS=","} ; /^'"${check}"'$/ {print $0}')" ] ; then
+					opts="${opts}${opts:+,}${check}"
+				fi
+			fi
+		done
+	fi
+	
+	printf -- "${opts}"
 }
