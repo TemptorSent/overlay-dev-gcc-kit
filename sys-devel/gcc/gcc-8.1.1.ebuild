@@ -405,7 +405,6 @@ src_configure() {
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
        use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}"
-		#--with-system-zlib \
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
@@ -426,6 +425,7 @@ src_configure() {
 		--enable-libmudflap \
 		--enable-secureplt \
 		--enable-lto \
+		--with-system-zlib \
 		$(use_with graphite cloog) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
