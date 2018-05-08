@@ -14,7 +14,7 @@ IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite +pch generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie esp stack_check link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE +pie stack_check link_now ssp_all" # Extra hardening flags
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 # Stage 1 internal self checking
@@ -224,10 +224,9 @@ src_prepare() {
 			einfo "Additional warnings enabled by default, this may break some tests and compilations with -Werror."
 		fi
 
-		if [ -n "$GENTOO_PATCH_VER" ]; then
+		if [ -n "$GENTOO_PATCHES_VER" ]; then
 			einfo "Applying Gentoo patches ..."
 			for my_patch in ${GENTOO_PATCHES[*]} ; do
-				einfo "    ${my_patch}"
 				eapply_gentoo "${my_patch}"
 			done
 		fi
@@ -267,9 +266,11 @@ src_prepare() {
 
 	# Ada gnat compiler bootstrap preparation
 	if use ada && use amd64; then
+		einfo "Preparing gnat64 for ada:"
 		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
 		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
 	elif use ada && use x86; then
+		einfo "Preparing gnat32 for ada:"
 		make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
 		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
 	fi
@@ -390,7 +391,6 @@ src_configure() {
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
 	confgcc+=" $(use_enable openmp libgomp)"
-	confgcc+=" $(use_enable esp esp)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
