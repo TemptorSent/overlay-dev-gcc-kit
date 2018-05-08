@@ -60,6 +60,7 @@ GENTOO_PATCHES=(
 	34_all_ia64_note.GNU-stack.patch
 	42_all_superh_default-multilib.patch
 	50_all_libiberty-asprintf.patch
+	fi
 	51_all_libiberty-pic.patch
 	54_all_nopie-all-flags.patch
 	#55_all_extra-options.patch
@@ -293,10 +294,7 @@ gcc_conf_lang_opts() {
 
 	use go && GCC_LANG+=",go"
 
-	if use ada; then
-		GCC_LANG+=",ada"
-		export PATH="${S}/gnatboot/bin:${PATH}"
-	fi
+	use ada && GCC_LANG+=",ada"
 	
 	conf_gcc_lang+=" --enable-languages=${GCC_LANG} --disable-libgcj"
 
@@ -359,6 +357,10 @@ gcc_conf_arm_opts() {
 }
 
 src_configure() {
+
+	# Setup additional paths as needed before we start.
+	use ada && export PATH="${S}/gnatboot/bin:${PATH}"
+
 	local confgcc
 	if is_crosscompile || tc-is-cross-compiler; then
 		confgcc+=" --target=${CTARGET}"
@@ -677,6 +679,7 @@ gcc_checking_opts() {
 	local CHECKING_YES="${CHECKING_RELEASE},misc,tree,gc,rtlflag"
 	local CHECKING_ALL="${CHECKING_YES},df,fold,gcac,rtl,extra"
 	local stage1="${1}${1:+_}"
+	local opts
 
 	if use ${stage1}checking_no ; then
 		opts="no"
