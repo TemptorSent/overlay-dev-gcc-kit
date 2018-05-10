@@ -225,6 +225,11 @@ src_prepare() {
 			done
 		fi
 
+		if use ada ; then
+			einfo "Patching ada stack handling..."
+			grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
+		fi
+
 		# Harden things up:
 
 		# Fix signed integer overflow insanity:
