@@ -12,7 +12,7 @@ FEATURES=${FEATURES/multilib-strict/}
 IUSE="ada +cxx go +fortran objc objc++ objc-gc" # Languages
 IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
-IUSE="$IUSE openmp altivec graphite +pch generic_host" # Optimizations/features flags
+IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
 IUSE="$IUSE +pie stack_check link_now ssp_all" # Extra hardening flags
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
@@ -224,6 +224,8 @@ src_prepare() {
 				eapply_gentoo "${my_patch}"
 			done
 		fi
+
+		use lto-bootstrap && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
 
 		if use ada ; then
 			einfo "Patching ada stack handling..."
