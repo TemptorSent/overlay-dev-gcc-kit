@@ -66,11 +66,11 @@ GENTOO_PATCHES=(
 	#55_all_extra-options.patch
 	90_all_pr55930-dependency-tracking.patch
 	92_all_asan-signal_h.patch
-	93_all_ucontext-to-ucontext_t.patch
-	94_all_no-sigaltstack.patch
-	95_all_static_override_pie.patch
-	96_all_powerpc_pie.patch
-	97_all_libjava-ucontext.patch
+	#93_all_ucontext-to-ucontext_t.patch
+	#94_all_no-sigaltstack.patch
+	#95_all_static_override_pie.patch
+	#96_all_powerpc_pie.patch
+	#97_all_libjava-ucontext.patch
 )
 
 # Math libraries:

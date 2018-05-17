@@ -225,12 +225,12 @@ src_prepare() {
 			done
 		fi
 
+		use lto-bootstrap && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
+
 		if use ada ; then
 			einfo "Patching ada stack handling..."
 			grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
 		fi
-
-		use lto-bootstrap && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
 
 		# Harden things up:
 
