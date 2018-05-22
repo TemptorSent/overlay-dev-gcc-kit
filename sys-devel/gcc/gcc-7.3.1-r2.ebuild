@@ -37,7 +37,7 @@ SLOT="${PV}"
 
 # Version of archive before patches.
 GCC_ARCHIVE_VER="7.3.0"
-GCC_SVN_REV="2604945"
+GCC_SVN_REV="260495"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
