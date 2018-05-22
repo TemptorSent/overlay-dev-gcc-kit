@@ -60,7 +60,6 @@ GENTOO_PATCHES=(
 	34_all_ia64_note.GNU-stack.patch
 	42_all_superh_default-multilib.patch
 	50_all_libiberty-asprintf.patch
-	fi
 	51_all_libiberty-pic.patch
 	54_all_nopie-all-flags.patch
 	#55_all_extra-options.patch
