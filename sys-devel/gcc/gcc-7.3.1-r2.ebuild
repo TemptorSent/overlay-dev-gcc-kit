@@ -242,9 +242,9 @@ src_prepare() {
 		sed -e 's/#ifdef ENABLE_DEFAULT_SSP/&\n# ifdef ENABLE_DEFAULT_SSP_ALL\n#  define DEFAULT_FLAGS_SSP 2\n# endif/' -i gcc/defaults.h
 		# Setup specs to allow default -fstack-check and link-now (-z now) to be enabled with defines
 		sed \
-			-e 's/#ifdef ENABLE_DEFAULT_PIE/#define STACK_CHECK_SPEC "%{fstack-check|fstack-check=*:;: -fstack-check} "\n#ifdef ENABLE_DEFAULT_LINK_NOW\n#define LINK_NOW_SPEC "%{!nonow:-z now} "\n#else\n#define LINK_NOW_SPEC ""\n#endif\n&/' \
-			-e 's/%{flto} %{fno-lto} %{flto=*} %l " LINK_PIE_SPEC/& LINK_NOW_SPEC/' \
-			-e 's/\(static const char *cc1_spec = CC1_SPEC\);/#ifdef ENABLE_DEFAULT_STACK_CHECK\n\1 STACK_CHECK_SPEC;\n#else\n\1;\n#endif/' \
+			-e '/#ifndef LINK_SSP_SPEC/,/#ifdef ENABLE_DEFAULT_PIE/ { s/#ifdef ENABLE_DEFAULT_PIE/#define STACK_CHECK_SPEC "%{fstack-check|fstack-check=*:;: -fstack-check} "\n#ifdef ENABLE_DEFAULT_LINK_NOW\n#define LINK_NOW_SPEC "%{!nonow:-z now} "\n#else\n#define LINK_NOW_SPEC ""\n#endif\n&/ }' \
+			-e '/#ifndef LINK_COMMAND_SPEC/,/#endif/ s/LINK_PIE_SPEC/& LINK_NOW_SPEC/' \
+			-e 's/\(static const char \*cc1_spec = CC1_SPEC\);/#ifdef ENABLE_DEFAULT_STACK_CHECK\n\1 STACK_CHECK_SPEC;\n#else\n\1;\n#endif/' \
 			-i gcc/gcc.c
 
 		# Selectively enable features from above hardened patches

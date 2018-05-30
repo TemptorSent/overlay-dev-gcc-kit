@@ -4,7 +4,7 @@ not using the toolchain eclass.
 The current "gold" master ebuild -- the one that contains all the most recent
 changes and new ebuilds should be based upon, is:
 
-gcc-7.3.0-r1.ebuild
+gcc-7.3.1-r2.ebuild
 ...but this will be refactored and changing soon.
 
 == Introduction ==
@@ -22,5 +22,5 @@ Other important notes on this ebuild:
 * test is now supported and encouraged.
 * objc-gc is enabled by USE flag 'objc-gc'.
 * graphite is supported by this ebuild.
-* hardened is supported, but we use 'pie' & 'ssp' USE flags to control those features directly.
-* go support is not tested and may be removed in the future.
+* hardened is supported, but we use 'link_now', 'pie' & 'ssp' USE flags to control those features directly.
+* go support is not tested and may be removed in the future (breaks when pulling libffi on multilib.)
