@@ -22,14 +22,12 @@ IUSE="$IUSE stage1_checking_no" # No internal checks.
 IUSE="$IUSE stage1_checking_release stage1_checking_assert stage1_checking_runtime" # Cheap internal checking only.
 IUSE="$IUSE +stage1_checking_yes stage1_checking_misc stage1_checking_tree stage1_checking_gc stage1_checking_rtlflag" # More checks, but reasonably fast.
 IUSE="$IUSE stage1_checking_all stage1_checking_df stage1_checking_fold stage1_checking_gcac stage1_checking_rtl" # Very expensive checks.
-IUSE="$IUSE stage1_checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
 IUSE="$IUSE stage1_checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
 # Final compiler internal self checking
 IUSE="$IUSE checking_no" # No internal checks.
 IUSE="$IUSE +checking_release checking_assert checking_runtime" # Cheap internal checking only.
 IUSE="$IUSE checking_yes checking_misc checking_tree checking_gc checking_rtlflag" # More checks, but reasonably fast.
 IUSE="$IUSE checking_all checking_df checking_fold checking_gcac checking_rtl" # Very expensive checks.
-IUSE="$IUSE checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
 IUSE="$IUSE checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
 
 
@@ -683,7 +681,7 @@ pkg_postinst() {
 gcc_checking_opts() {
 	local CHECKING_RELEASE="assert,runtime"
 	local CHECKING_YES="${CHECKING_RELEASE},misc,tree,gc,rtlflag"
-	local CHECKING_ALL="${CHECKING_YES},df,fold,gcac,rtl,extra"
+	local CHECKING_ALL="${CHECKING_YES},df,fold,gcac,rtl"
 	local stage1="${1}${1:+_}"
 	local opts
 
@@ -697,9 +695,9 @@ gcc_checking_opts() {
 		elif use ${stage1}checking_release ; then
 			opts="${CHECKING_RELEASE}"
 		fi
-		for check in assert df fold gc gcac misc rtl rtlflag runtime tree extra valgrind ; do
-			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
-			if use ${stage1}checking_${check} || ( [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
+		for check in assert df fold gc gcac misc rtl rtlflag runtime tree valgrind ; do
+			# Check if the flag is enabled and add to list if not there.
+			if use ${stage1}checking_${check} ; then
 				if [ -z "$(echo "${opts}" | awk 'BEGIN {RS=","} ; /^'"${check}"'$/ {print $0}')" ] ; then
 					opts="${opts}${opts:+,}${check}"
 				fi
