@@ -553,7 +553,7 @@ doc_cleanups() {
 	if [[ -d ${cxx_mandir} ]] ; then
 		# clean bogus manpages #113902
 		find "${cxx_mandir}" -name '*_build_*' -exec rm {} \;
-		cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/
+		( +f cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/ )
 	fi
 	has noinfo ${FEATURES} \
 		&& rm -r "${D}/${DATAPATH}"/info \
@@ -570,7 +570,7 @@ src_install() {
 
 	# from toolchain eclass:
 	# Do allow symlinks in private gcc include dir as this can break the build
-	find gcc/include*/ -type l -delete
+	( +f find gcc/include*/ -type l -delete )
 
 	# Remove generated headers, as they can cause things to break
 	# (ncurses, openssl, etc).
@@ -610,19 +610,22 @@ src_install() {
 	linkify_compiler_binaries
 	tasteful_stripping
 	if is_crosscompile; then
-		rm -rf "${D%/}/usr/share"/{man,info}
-		rm -rf "${D}${DATAPATH}"/{man,info}
+		( +f
+			rm -rf "${D%/}/usr/share"/{man,info}
+			rm -rf "${D}${DATAPATH}"/{man,info}
+		)
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \;
 		doc_cleanups
 		exeinto "${DATAPATH}"
-		doexe "${FILESDIR}"/c{89,99} || die
+		( +f doexe "${FILESDIR}"/c{89,99} || die )
 	fi
 
 	# replace gcc_movelibs - currently handles only libcc1:
-
-	rm ${D%/}/usr/lib{,32,64}/*.la
-	mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
+	( +f
+		rm ${D%/}/usr/lib{,32,64}/*.la
+		mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
+	)
 
 	# the .la files that are installed have weird embedded single quotes around abs
 	# paths on the dependency_libs line. The following code finds and fixes them:
@@ -651,9 +654,11 @@ pkg_postrm() {
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
 		if [[ -z $(ls "${ROOT}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
-			rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET}
-			rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
-			rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
+			( +f
+				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET}
+				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
+				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
+			)
 		fi
 		return 0
 	fi
@@ -665,7 +670,7 @@ pkg_postinst() {
 	fi
 
 	# hack from gentoo - should probably be handled better:
-	cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null
+	( +f cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
 
 	compiler_auto_enable ${PV} ${CTARGET}
 }
