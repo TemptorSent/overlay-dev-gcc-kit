@@ -553,7 +553,7 @@ doc_cleanups() {
 	if [[ -d ${cxx_mandir} ]] ; then
 		# clean bogus manpages #113902
 		find "${cxx_mandir}" -name '*_build_*' -exec rm {} \;
-		( +f cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/ )
+		( set +f ; cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/ )
 	fi
 	has noinfo ${FEATURES} \
 		&& rm -r "${D}/${DATAPATH}"/info \
@@ -570,7 +570,7 @@ src_install() {
 
 	# from toolchain eclass:
 	# Do allow symlinks in private gcc include dir as this can break the build
-	( +f find gcc/include*/ -type l -delete )
+	( set +f ; find gcc/include*/ -type l -delete )
 
 	# Remove generated headers, as they can cause things to break
 	# (ncurses, openssl, etc).
@@ -610,7 +610,7 @@ src_install() {
 	linkify_compiler_binaries
 	tasteful_stripping
 	if is_crosscompile; then
-		( +f
+		( set +f
 			rm -rf "${D%/}/usr/share"/{man,info}
 			rm -rf "${D}${DATAPATH}"/{man,info}
 		)
@@ -618,11 +618,11 @@ src_install() {
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \;
 		doc_cleanups
 		exeinto "${DATAPATH}"
-		( +f doexe "${FILESDIR}"/c{89,99} || die )
+		( set +f ; doexe "${FILESDIR}"/c{89,99} || die )
 	fi
 
 	# replace gcc_movelibs - currently handles only libcc1:
-	( +f
+	( set +f
 		rm ${D%/}/usr/lib{,32,64}/*.la
 		mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
 	)
@@ -654,7 +654,7 @@ pkg_postrm() {
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
 		if [[ -z $(ls "${ROOT}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
-			( +f
+			( set +f
 				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET}
 				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
 				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
@@ -670,7 +670,7 @@ pkg_postinst() {
 	fi
 
 	# hack from gentoo - should probably be handled better:
-	( +f cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
+	( set +f ; cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
 
 	compiler_auto_enable ${PV} ${CTARGET}
 }
