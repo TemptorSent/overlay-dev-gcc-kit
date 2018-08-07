@@ -14,7 +14,7 @@ IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie stack_check link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE +pie +vtv stack_check link_now ssp_all" # Extra hardening flags
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 # Stage 1 internal self checking
@@ -399,6 +399,8 @@ src_configure() {
 	! use pch && confgcc+=" --disable-libstdcxx-pch"
 	#use graphite && confgcc+=" --disable-isl-version-check"
 
+	use vtv && confgcc+=" --enable-vtable-verify --enable-libvtv"
+
 	use libssp || export gcc_cv_libc_provides_ssp=yes
 
 	local branding="Funtoo"
@@ -620,6 +622,16 @@ src_install() {
 		exeinto "${DATAPATH}"
 		( set +f ; doexe "${FILESDIR}"/c{89,99} || die )
 	fi
+
+	# Cleanup undesired libtool archives
+	find "${D}" \
+		'(' \
+			-name 'libstdc++.la' -o -name 'libstdc++fs.la' -o -name 'libsupc++.la' -o \
+			-name 'libcc1.la' -o -name 'libcc1plugin.la' -o -name 'libcp1plugin.la' -o \
+			-name 'libgomp.la' -o -name 'libgomp-plugin-*.la' -o \
+			-name 'libgfortran.la' -o -name 'libgfortranbegin.la' -o \
+			-name 'libitm.la' -o -name 'libvtv.la' -o -name 'lib*san.la' \
+		')' -type f -delete
 
 	# replace gcc_movelibs - currently handles only libcc1:
 	( set +f
