@@ -630,6 +630,7 @@ src_install() {
 			-name 'libcc1.la' -o -name 'libcc1plugin.la' -o -name 'libcp1plugin.la' -o \
 			-name 'libgomp.la' -o -name 'libgomp-plugin-*.la' -o \
 			-name 'libgfortran.la' -o -name 'libgfortranbegin.la' -o \
+			-name 'libmpx.la' -o -name 'libmpxwrappers.la' -o \
 			-name 'libitm.la' -o -name 'libvtv.la' -o -name 'lib*san.la' \
 		')' -type f -delete
 
