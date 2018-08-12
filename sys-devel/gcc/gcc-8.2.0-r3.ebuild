@@ -14,7 +14,7 @@ IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie stack_check link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE +pie +vtv stack_check link_now ssp_all" # Extra hardening flags
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 # Stage 1 internal self checking
@@ -406,6 +406,8 @@ src_configure() {
 	! use pch && confgcc+=" --disable-libstdcxx-pch"
 	#use graphite && confgcc+=" --disable-isl-version-check"
 
+	use vtv && confgcc+=" --enable-vtable-verify --enable-libvtv"
+
 	use libssp || export gcc_cv_libc_provides_ssp=yes
 
 	local branding="Funtoo"
@@ -560,7 +562,7 @@ doc_cleanups() {
 	if [[ -d ${cxx_mandir} ]] ; then
 		# clean bogus manpages #113902
 		find "${cxx_mandir}" -name '*_build_*' -exec rm {} \;
-		cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/
+		( set +f ; cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/ )
 	fi
 	has noinfo ${FEATURES} \
 		&& rm -r "${D}/${DATAPATH}"/info \
@@ -577,7 +579,7 @@ src_install() {
 
 	# from toolchain eclass:
 	# Do allow symlinks in private gcc include dir as this can break the build
-	find gcc/include*/ -type l -delete
+	( set +f ; find gcc/include*/ -type l -delete )
 
 	# Remove generated headers, as they can cause things to break
 	# (ncurses, openssl, etc).
@@ -617,19 +619,33 @@ src_install() {
 	linkify_compiler_binaries
 	tasteful_stripping
 	if is_crosscompile; then
-		rm -rf "${D%/}/usr/share"/{man,info}
-		rm -rf "${D}${DATAPATH}"/{man,info}
+		( set +f
+			rm -rf "${D%/}/usr/share"/{man,info}
+			rm -rf "${D}${DATAPATH}"/{man,info}
+		)
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \;
 		doc_cleanups
 		exeinto "${DATAPATH}"
-		doexe "${FILESDIR}"/c{89,99} || die
+		( set +f ; doexe "${FILESDIR}"/c{89,99} || die )
 	fi
 
-	# replace gcc_movelibs - currently handles only libcc1:
+	# Cleanup undesired libtool archives
+	find "${D}" \
+		'(' \
+			-name 'libstdc++.la' -o -name 'libstdc++fs.la' -o -name 'libsupc++.la' -o \
+			-name 'libcc1.la' -o -name 'libcc1plugin.la' -o -name 'libcp1plugin.la' -o \
+			-name 'libgomp.la' -o -name 'libgomp-plugin-*.la' -o \
+			-name 'libgfortran.la' -o -name 'libgfortranbegin.la' -o \
+			-name 'libmpx.la' -o -name 'libmpxwrappers.la' -o \
+			-name 'libitm.la' -o -name 'libvtv.la' -o -name 'lib*san.la' \
+		')' -type f -delete
 
-	rm ${D%/}/usr/lib{,32,64}/*.la
-	mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
+	# replace gcc_movelibs - currently handles only libcc1:
+	( set +f
+		rm ${D%/}/usr/lib{,32,64}/*.la
+		mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/
+	)
 
 	# the .la files that are installed have weird embedded single quotes around abs
 	# paths on the dependency_libs line. The following code finds and fixes them:
@@ -658,9 +674,11 @@ pkg_postrm() {
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
 		if [[ -z $(ls "${ROOT}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
-			rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET}
-			rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
-			rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
+			( set +f
+				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET}
+				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
+				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
+			)
 		fi
 		return 0
 	fi
@@ -672,7 +690,7 @@ pkg_postinst() {
 	fi
 
 	# hack from gentoo - should probably be handled better:
-	cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null
+	( set +f ; cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
 
 	compiler_auto_enable ${PV} ${CTARGET}
 }
