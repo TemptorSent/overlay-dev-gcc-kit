@@ -190,7 +190,7 @@ eapply_gentoo() {
 
 src_prepare() {
 	# Patch from release to svn branch tip for backports
-	eapply "${GCC_SVN_PATCH}"
+	[ "x${GCC_SVN_PATCH}" = "x" ] || eapply "${GCC_SVN_PATCH}"
 
 	( use vanilla && use hardened ) \
 		&& die "vanilla and hardened USE flags are incompatible. Disable one of them"
