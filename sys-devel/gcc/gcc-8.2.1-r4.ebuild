@@ -163,6 +163,8 @@ pkg_setup() {
 	fi
 	LIBPATH=${PREFIX}/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}
 	STDCXX_INCDIR=${LIBPATH}/include/g++-v${GCC_BRANCH_VER}
+
+	use doc || export MAKEINFO="true"
 }
 
 src_unpack() {
@@ -565,12 +567,20 @@ doc_cleanups() {
 		find "${cxx_mandir}" -name '*_build_*' -exec rm {} \;
 		( set +f ; cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/ )
 	fi
-	has noinfo ${FEATURES} \
-		&& rm -r "${D}/${DATAPATH}"/info \
-		|| prepinfo "${DATAPATH}"
-	has noman ${FEATURES} \
-		&& rm -r "${D}/${DATAPATH}"/man \
-		|| prepman "${DATAPATH}"
+
+	# Remove info files if we don't want them.
+	if ! use doc || has noinfo ${FEATURES} ; then
+		rm -r "${D}/${DATAPATH}"/info
+	else
+		prepinfo "${DATAPATH}"
+	fi
+
+	# Strip man files too if 'noman' feature is set.
+	if has noman ${FEATURES} ; then
+		rm -r "${D}/${DATAPATH}"/man
+	else
+		prepman "${DATAPATH}"
+	fi
 }
 
 src_install() {
