@@ -16,31 +16,29 @@ IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie +vtv stack_clash_protection link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE +pie +vtv link_now ssp_all" # Extra hardening flags
 [ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE stack_clash_protection" # Stack clash protector added in gcc-8
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
-# Stage 1 internal self checking
-IUSE="$IUSE stage1_checking_no" # No internal checks.
-IUSE="$IUSE stage1_checking_release stage1_checking_assert stage1_checking_runtime" # Cheap internal checking only.
-IUSE="$IUSE +stage1_checking_yes stage1_checking_misc stage1_checking_tree stage1_checking_gc stage1_checking_rtlflag" # More checks, but reasonably fast.
-IUSE="$IUSE stage1_checking_all stage1_checking_df stage1_checking_fold stage1_checking_gcac stage1_checking_rtl" # Very expensive checks.
-[ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE stage1_checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
-IUSE="$IUSE stage1_checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
-# Final compiler internal self checking
-IUSE="$IUSE checking_no" # No internal checks.
-IUSE="$IUSE +checking_release checking_assert checking_runtime" # Cheap internal checking only.
-IUSE="$IUSE checking_yes checking_misc checking_tree checking_gc checking_rtlflag" # More checks, but reasonably fast.
-IUSE="$IUSE checking_all checking_df checking_fold checking_gcac checking_rtl" # Very expensive checks.
-[ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE checking_extra" # extra checks for misc which change code and need to be enabled in all stages if used
-IUSE="$IUSE checking_valgrind" # Valgrind checking -- very expensive! (Needs valgrind)
+
+# Handle internal self checking options
+CHECKS_RELEASE="assert runtime"
+CHECKS_YES="${CHECKS_RELEASE} misc tree gc rtlflag"
+CHECKS_EXTRA="$( [ ${GCC_MAJOR} -ge 8 ] && printf -- "extra" )"
+CHECKS_VALGRIND="valgrind"
+CHECKS_ALL="${CHECKS_YES} df fold gcac rtl ${CHECKS_EXTRA}"
+
+for _check in no release yes all ${CHECKS_ALL} ${CHECKS_VALGRIND}; do
+	IUSE="${IUSE} checking_${_check} stage1_checking_${_check}"
+done
+
 
 
 SLOT="${PV}"
 
 # Version of archive before patches.
 GCC_ARCHIVE_VER="8.2.0"
-GCC_SVN_REV="263743"
+GCC_SVN_REV="263866"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
@@ -83,14 +81,16 @@ GMP_EXTRAVER=""
 SRC_URI="$SRC_URI mirror://gnu/gmp/gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz"
 
 MPFR_VER="4.0.1"
+MPFR_PATCH_VER="1"
 SRC_URI="$SRC_URI http://www.mpfr.org/mpfr-${MPFR_VER}/mpfr-${MPFR_VER}.tar.xz"
+MPFR_PATCH_FILE="${MPFR_PATCH_VER:+${FILESDIR}/mpfr/mpfr-${MPFR_VER}_to_${MPFR_VER}-p${MPFR_PATCH_VER}.patch}"
 
 MPC_VER="1.1.0"
 SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
 
 # Graphite support:
 CLOOG_VER="0.18.4"
-ISL_VER="0.18"
+ISL_VER="0.20"
 SRC_URI="$SRC_URI graphite? ( http://www.bastoul.net/cloog/pages/download/count.php3?url=./cloog-${CLOOG_VER}.tar.gz http://isl.gforge.inria.fr/isl-${ISL_VER}.tar.xz )"
 
 # Ada Support:
@@ -214,6 +214,9 @@ eapply_gentoo() {
 }
 
 src_prepare() {
+	# Run preperations for dependencies first
+	_gcc_prepare_mpfr
+
 	# Patch from release to svn branch tip for backports
 	[ "x${GCC_SVN_PATCH}" = "x" ] || eapply "${GCC_SVN_PATCH}"
 
@@ -259,67 +262,88 @@ src_prepare() {
 
 		use lto-bootstrap && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
 
-		if use ada ; then
-			einfo "Patching ada stack handling..."
-			grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
-		fi
-
 		# Harden things up:
-
-		# Fix signed integer overflow insanity:
-		sed -e '/{ OPT_LEVELS_2_PLUS, OPT_fstrict_overflow, NULL, 1 }/ d' -i gcc/opts.c
-		# Prevent breakage if -fstack-check has been set to default on
-		#sed -e 's/$(INHIBIT_LIBC_CFLAGS)/-fstack-check=no &/' -i libgcc/Makefile.in
-		# Allow -fstack-protector-all to be enabled by default with appropriate defines
-		sed -e 's/#ifdef ENABLE_DEFAULT_SSP/&\n# ifdef ENABLE_DEFAULT_SSP_ALL\n#  define DEFAULT_FLAGS_SSP 2\n# endif/' -i gcc/defaults.h
-
-		# Modify gentoo patch to use our more specific hardening flags.
-		cat "${GENTOO_PATCHES_DIR}/55_all_extra-options.patch" | sed -e 's/EXTRA_OPTIONS/ENABLE_DEFAULT_LINK_NOW/g' -e 's/ENABLE_ESP/ENABLE_DEFAULT_SCP/g' > "${T}/55_all_hardening-options.patch"
-		eapply "${T}/55_all_hardening-options.patch"
-
-		# Selectively enable features from above hardened patches
-		local gcc_hard_flags=""
-		[ ${GCC_MAJOR} -ge 8 ] && use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
-		use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
-		use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-
-
-		sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
-			-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
-			-i "${S}"/gcc/Makefile.in
-
-		sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
-			-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
-			-i "${S}"/gcc/Makefile.in
-
-		sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
+		_gcc_prepare_harden
 	fi
-
 	# Ada gnat compiler bootstrap preparation
-	if use ada; then
-		if use amd64; then
-			einfo "Preparing gnat64 for ada:"
-			make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-			find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
-		elif use x86; then
-			einfo "Preparing gnat32 for ada:"
-			make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-			find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
-		else
-			die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
-		fi
-	fi
+	use ada && _gcc_prepare_gnat
 
 	# Prepare GDC for d-lang support
-	if use d ; then
-		pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
-		eapply "${FILESDIR}/lang/d/${P}-gdc-gentoo-compatibility.patch"
-		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
-		popd > /dev/null
-	fi
+	use d && _gcc_prepare_gdc
 
 	# Must be called in src_prepare by EAPI6
 	eapply_user
+}
+
+_gcc_prepare_mpfr() {
+	if [ -n "${MPFR_PATCH_VER}" ];  then
+		[ -f "${MPFR_PATCH_FILE}" ] || die "Couldn't find mpfr patch '${MPFR_PATCH_FILE}"
+		pushd "${S}/mpfr" > /dev/null || die "Couldn't change to mpfr source directory."
+		patch -N -Z -p1 < "${MPFR_PATCH_FILE}" || die "Failed to apply mpfr patch '${MPFR_PATCH_FILE}'."
+		popd > /dev/null
+	fi
+}
+
+_gcc_prepare_harden() {
+	local gcc_hard_flags=""
+	[ ${GCC_MAJOR} -eq 7 ] && _gcc_prepare_harden_7
+	[ ${GCC_MAJOR} -eq 8 ] && _gcc_prepare_harden_8
+	
+	# Selectively enable features from hardening patches
+	use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+	use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
+
+
+	sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
+		-e 's|^ALL_CFLAGS = |ALL_CFLAGS = $(HARD_CFLAGS) |' \
+		-i "${S}"/gcc/Makefile.in
+
+	sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
+		-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
+		-i "${S}"/gcc/Makefile.in
+
+	sed -i -e "/^HARD_CFLAGS = /s|=|= ${gcc_hard_flags} |" "${S}"/gcc/Makefile.in || die
+}
+
+_gcc_prepare_harden_7() {
+		# Fix signed integer overflow insanity:
+		sed -e '/{ OPT_LEVELS_2_PLUS, OPT_fstrict_overflow, NULL, 1 }/ d' -i gcc/opts.c
+		# Prevent breakage if -fstack-check has been set to default on
+		sed -e 's/$(INHIBIT_LIBC_CFLAGS)/-fstack-check=no &/' -i libgcc/Makefile.in
+		# Allow -fstack-protector-all to be enabled by default with appropriate defines
+		sed -e 's/#ifdef ENABLE_DEFAULT_SSP/&\n# ifdef ENABLE_DEFAULT_SSP_ALL\n#  define DEFAULT_FLAGS_SSP 2\n# endif/' -i gcc/defaults.h
+}
+
+_gcc_prepare_harden_8() {
+		# Modify gentoo patch to use our more specific hardening flags.
+		[ ${GCC_MAJOR} -ge 8 ] && cat "${GENTOO_PATCHES_DIR}/55_all_extra-options.patch" | sed -e 's/EXTRA_OPTIONS/ENABLE_DEFAULT_LINK_NOW/g' -e 's/ENABLE_ESP/ENABLE_DEFAULT_SCP/g' > "${T}/55_all_hardening-options.patch"
+		eapply "${T}/55_all_hardening-options.patch"
+		use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+}
+
+_gcc_prepare_gnat() {
+	if use amd64; then
+		einfo "Preparing gnat64 for ada:"
+		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
+		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
+	elif use x86; then
+		einfo "Preparing gnat32 for ada:"
+		make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
+		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
+	else
+		die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
+	fi
+}
+
+_gcc_prepare_gdc() {
+	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
+
+		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
+		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/gcc-${GENTOO_GCC_PATCHES_VER}-gdc-gentoo-compatibility.patch"
+		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
+
+		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
+	popd > /dev/null
 }
 
 gcc_conf_lang_opts() {
@@ -728,25 +752,32 @@ pkg_postinst() {
 # GCC internal self checking options
 # Usage: gcc_checking_opts [stage1]
 gcc_checking_opts() {
-	local CHECKING_RELEASE="assert,runtime"
-	local CHECKING_YES="${CHECKING_RELEASE},misc,tree,gc,rtlflag"
-	local CHECKING_ALL="${CHECKING_YES},df,fold,gcac,rtl$([ ${GCC_MAJOR} -ge 8 ] && printf -- ",extra")"
+	local opts_checking_release="assert,runtime"
+	local opts_checking_extra="$([ ${GCC_MAJOR} -ge 8 ] && printf -- "extra")"
+	local opts_checking_yes="${opts_checking_release},misc,tree,gc,rtlflag"
+	local opts_checking_all="${opts_checking_yes},df,fold,gcac,rtl${opts_checking_extra:+,${opts_checking_extra}}"
 	local stage1="${1}${1:+_}"
 	local opts
-
+	
+	for c in ${CHECKS_RELEASE} ; do opts_checking_release="${opts_checking_release:+${opts_checking_release},},${a}" ; done
+	for c in ${CHECKS_YES} ; do opts_checking_yes="${opts_checking_yes:+${opts_checking_yes},},${a}" ; done
+	for c in ${CHECKS_EXTRA} ; do opts_checking_extra="${opts_checking_extra:+${opts_checking_extra},},${a}" ; done
+	for c in ${CHECKS_ALL} ; do opts_checking_all="${opts_checking_all:+${opts_checking_all},},${a}" ; done
+	for c in ${CHECKS_VALGRIND} ; do opts_checking_valgrind="${opts_checking_valgrind:+${opts_checking_valrind},},${a}" ; done
+	
 	if use ${stage1}checking_no ; then
 		opts="no"
 	else
 		if use ${stage1}checking_all ; then
-			opts="${CHECKING_ALL}"
+			opts="${opts_checking_all}"
 		elif use ${stage1}checking_yes ; then
-			opts="${CHECKING_YES}"
+			opts="${opts_checking_yes}"
 		elif use ${stage1}checking_release ; then
-			opts="${CHECKING_RELEASE}"
+			opts="${opts_checking_release}"
 		fi
-		for check in assert df fold gc gcac misc rtl rtlflag runtime tree extra valgrind ; do
+		for check in ${CHECKS_ALL} ${CHECKS_VALGRIND} ; do
 			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
-			if use ${stage1}checking_${check} || ( [ ${GCC_MAJOR} -ge 8 ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
+			if use ${stage1}checking_${check} || ( [ -n "${opts_checking_extra}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
 				if [ -z "$(echo "${opts}" | awk 'BEGIN {RS=","} ; /^'"${check}"'$/ {print $0}')" ] ; then
 					opts="${opts}${opts:+,}${check}"
 				fi
