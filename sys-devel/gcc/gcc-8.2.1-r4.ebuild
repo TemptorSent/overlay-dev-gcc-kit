@@ -505,8 +505,7 @@ src_configure() {
 		$(use_with graphite cloog) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
-		--enable-stage1-checking=$(gcc_checking_opts stage1) \
-		--enable-checking=$(gcc_checking_opts) \
+		$(gcc_checking_opts stage1) $(gcc_checking_opts) \
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
@@ -753,46 +752,45 @@ pkg_postinst() {
 # GCC internal self checking options
 # Usage: gcc_checking_opts [stage1]
 gcc_checking_opts() {
-	local opts_checking_releasei opts_checking_extra opts_checking_yes opts_checking_all
 	local stage1="${1}${1:+_}"
 
-	local c
-	for c in ${CHECKS_RELEASE} ; do opts_checking_release="${opts_checking_release:+${opts_checking_release},},${c}" ; done
-	for c in ${CHECKS_YES} ; do opts_checking_yes="${opts_checking_yes:+${opts_checking_yes},},${c}" ; done
-	for c in ${CHECKS_EXTRA} ; do opts_checking_extra="${opts_checking_extra:+${opts_checking_extra},},${c}" ; done
-	for c in ${CHECKS_ALL} ; do opts_checking_all="${opts_checking_all:+${opts_checking_all},},${c}" ; done
-	for c in ${CHECKS_VALGRIND} ; do opts_checking_valgrind="${opts_checking_valgrind:+${opts_checking_valrind},},${c}" ; done
-
-	local opts
+	local opts check checks
+	# Setting checking_no overrides all other checks
 	if use ${stage1}checking_no ; then
 		opts="no"
 	else
+		# Priority is all > yes > release
 		if use ${stage1}checking_all ; then
-			opts="${opts_checking_all}"
+			checks="${CHECKS_ALL}"
 		elif use ${stage1}checking_yes ; then
-			opts="${opts_checking_yes}"
+			checks="${CHECKS_YES}"
 		elif use ${stage1}checking_release ; then
-			opts="${opts_checking_release}"
+			checks="${CHECKS_RELEASE}"
 		fi
-		local check
+
+		# Check if explict use flags are set for any valid checks
 		for check in ${CHECKS_ALL} ${CHECKS_VALGRIND} ; do
 			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
-			if use ${stage1}checking_${check} || ( [ -n "${opts_checking_extra}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
-				if [ -z "$(echo "${opts}" | awk 'BEGIN {RS=","} ; /^'"${check}"'$/ {print $0}')" ] ; then
-					opts="${opts}${opts:+,}${check}"
-				fi
+			if use ${stage1}checking_${check} || ( [ -n "${CHECKS_EXTRA}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
+				has check "${checks}" || checks="${checks} ${check}"
 			fi
+		done
+
+		# If no checking has been defined, set defaults
+		if [ -z "${checks}" ] ; then
+			if [ -n "${stage1}" ] ; then
+				checks="${CHECKS_YES}"
+			else
+				checks="${CHECKS_RELEASE}"
+			fi
+		fi
+
+		# build our opts string
+		for check in ${checks} ; do
+			opts="${opts}${opts:+,}${check}"
 		done
 	fi
 
-	# If no checking has been defined, set defaults:
-	if [ -z "${opts}" ] ; then
-		if [ -n "${stage1}" ] ; then
-			opts="${opts_checking_yes}"
-		else
-			opts="${opts_checking_release}"
-		fi
-	fi
 
-	printf -- "${opts}"
+	printf -- "--enable-${stage1:+${stage1%_}-}checking=${opts}"
 }
