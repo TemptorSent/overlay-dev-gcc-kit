@@ -318,7 +318,6 @@ gcc_conf_arm_opts() {
 		done
 
 		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		local arm_arch_without_dash=${arm_arch}
 		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
 		# See if this is a valid --with-arch flag
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
@@ -445,22 +444,6 @@ src_configure() {
 		--enable-checking=$(gcc_checking_opts) \
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
-
-	#	--with-mpfr-include=${S}/mpfr/src \
-	#	--with-mpfr-lib=${WORKDIR}/objdir/mpfr/src/.libs \
-	# The --with-mpfr* lines above are used so that gcc-4.6.4 can find mpfr-3.1.2.
-	# It can find 2.4.2 with no problem automatically but needs help with newer versions
-	# due to mpfr dir structure changes. We look for includes in the source directory,
-	# and libraries in the build (objdir) directory.
-
-	if use arm ; then
-		# Source : https://sourceware.org/bugzilla/attachment.cgi?id=6807
-		# Workaround for a problem introduced with GMP 5.1.0.
-		# If configured by gcc with the "none" host & target, it will result in undefined references
-		# to '__gmpn_invert_limb' during linking.
-		# Should be fixed by next version of gcc.
-		sed -i "s/none-/${arm_arch_without_dash}-/" ${WORKDIR}/objdir/Makefile || die
-	fi
 
 }
 
