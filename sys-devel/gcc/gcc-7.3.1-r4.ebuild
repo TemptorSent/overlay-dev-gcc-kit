@@ -575,6 +575,7 @@ linkify_compiler_binaries() {
 	use go && binary_languages="${binary_languages} gccgo"
 	use fortran && binary_languages="${binary_languages} gfortran"
 	use ada && binary_languages="${binary_languages} ${gnat_bins}"
+	use d && binary_languages="${binary_languages} gdc"
 
 	for x in ${binary_languages} ; do
 		[[ -f ${x} ]] && mv ${x} ${CTARGET}-${x}
