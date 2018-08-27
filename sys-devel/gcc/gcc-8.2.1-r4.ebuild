@@ -101,6 +101,7 @@ SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror:
 # D support
 DLANG_REPO_URI="https://github.com/D-Programming-GDC/GDC.git"
 DLANG_BRANCH="gdc-${GCC_MAJOR}-stable"
+DLANG_COMMIT_DATE="2018-08-26"
 DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
@@ -199,10 +200,16 @@ src_unpack() {
 	# gdc D support
 	if use d ; then
 		O_EGIT_BRANCH="${EGIT_BRANCH}"
+		O_EGIT_COMMIT="${EGIT_COMMIT}"
+		O_EGIT_COMMIT_DATE="${EGIT_COMMIT_DATE}"
 		EGIT_BRANCH="${DLANG_BRANCH}"
+		EGIT_COMMIT="${DLANG_COMMIT}"
+		EGIT_COMMIT_DATE="${DLANG_COMMIT_DATE}"
 		git-r3_fetch "${DLANG_REPO_URI}"
 		git-r3_checkout "${DLANG_REPO_URI}" "${DLANG_CHECKOUT_DIR}"
 		EGIT_BRANCH="${O_EGIT_BRANCH}"
+		EGIT_COMMIT="${O_EGIT_COMMIT}"
+		EGIT_COMMIT_DATE="${O_EGIT_COMMIT_DATE}"
 	fi
 
 	cd $S
@@ -339,7 +346,7 @@ _gcc_prepare_gdc() {
 	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
 
 		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
-		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/gcc-${GENTOO_GCC_PATCHES_VER}-gdc-gentoo-compatibility.patch"
+		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PVR}-gdc-gentoo-compatibility.patch"
 		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
 
 		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
