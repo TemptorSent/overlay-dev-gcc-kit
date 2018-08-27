@@ -4,19 +4,20 @@
 
 EAPI=6
 
-inherit multilib-build eutils pax-utils toolchain-enable
+inherit multilib-build eutils pax-utils toolchain-enable git-r3
 
 RESTRICT="strip"
 FEATURES=${FEATURES/multilib-strict/}
 
 GCC_MAJOR="${PV%%.*}"
 
-IUSE="ada +cxx go +fortran objc objc++ objc-gc" # Languages
+IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
 IUSE="$IUSE +pie +vtv stack_clash_protection link_now ssp_all" # Extra hardening flags
+[ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE stack_clash_protection" # Stack clash protector added in gcc-8
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 # Stage 1 internal self checking
@@ -73,7 +74,7 @@ GENTOO_PATCHES=(
 	97_all_disable-systemtap-switch.patch
 	98_all_sh_textrel-on-libitm.patch
 	99_all_m68k-textrel-on-libgcc.patch
-#	100_all_isl-include.patch
+	#100_all_isl-include.patch
 )
 
 # Math libraries:
@@ -96,6 +97,11 @@ SRC_URI="$SRC_URI graphite? ( http://www.bastoul.net/cloog/pages/download/count.
 GNAT32="gnat-gpl-2014-x86-linux-bin.tar.gz"
 GNAT64="gnat-gpl-2017-x86_64-linux-bin.tar.gz"
 SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror://funtoo/gcc/${GNAT32} ) )"
+
+# D support
+DLANG_REPO_URI="https://github.com/D-Programming-GDC/GDC.git"
+DLANG_BRANCH="gdc-${GCC_MAJOR}-stable"
+DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
 
@@ -179,10 +185,24 @@ src_unpack() {
 		( unpack isl-${ISL_VER}.tar.xz && mv ${WORKDIR}/isl-${ISL_VER} ${S}/isl ) || die "isl setup fail"
 	fi
 
-	if use ada && use amd64; then
-		unpack $GNAT64 || die "ada setup failed"
-	elif use ada && use x86; then
-		unpack $GNAT32 || die "ada setup failed"
+	# GNAT ada support
+	if use ada ; then
+		if use amd64; then
+			unpack $GNAT64 || die "ada setup failed"
+		elif use x86; then
+			unpack $GNAT32 || die "ada setup failed"
+		else
+			die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
+		fi
+	fi
+
+	# gdc D support
+	if use d ; then
+		O_EGIT_BRANCH="${EGIT_BRANCH}"
+		EGIT_BRANCH="${DLANG_BRANCH}"
+		git-r3_fetch "${DLANG_REPO_URI}"
+		git-r3_checkout "${DLANG_REPO_URI}" "${DLANG_CHECKOUT_DIR}"
+		EGIT_BRANCH="${O_EGIT_BRANCH}"
 	fi
 
 	cd $S
@@ -259,7 +279,7 @@ src_prepare() {
 
 		# Selectively enable features from above hardened patches
 		local gcc_hard_flags=""
-		use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+		[ ${GCC_MAJOR} -ge 8 ] && use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
 		use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
 		use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
 
@@ -276,14 +296,26 @@ src_prepare() {
 	fi
 
 	# Ada gnat compiler bootstrap preparation
-	if use ada && use amd64; then
-		einfo "Preparing gnat64 for ada:"
-		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
-	elif use ada && use x86; then
-		einfo "Preparing gnat32 for ada:"
-		make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
+	if use ada; then
+		if use amd64; then
+			einfo "Preparing gnat64 for ada:"
+			make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
+			find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
+		elif use x86; then
+			einfo "Preparing gnat32 for ada:"
+			make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
+			find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
+		else
+			die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
+		fi
+	fi
+
+	# Prepare GDC for d-lang support
+	if use d ; then
+		pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
+		eapply "${FILESDIR}/lang/d/${P}-gdc-gentoo-compatibility.patch"
+		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
+		popd > /dev/null
 	fi
 
 	# Must be called in src_prepare by EAPI6
@@ -305,7 +337,9 @@ gcc_conf_lang_opts() {
 	use go && GCC_LANG+=",go"
 
 	use ada && GCC_LANG+=",ada"
-	
+
+	use d && GCC_LANG+=",d"
+
 	conf_gcc_lang+=" --enable-languages=${GCC_LANG} --disable-libgcj"
 
 	printf -- "${conf_gcc_lang}"
@@ -325,7 +359,6 @@ gcc_conf_arm_opts() {
 		done
 
 		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		local arm_arch_without_dash=${arm_arch}
 		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
 		# See if this is a valid --with-arch flag
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
@@ -452,22 +485,6 @@ src_configure() {
 		--enable-checking=$(gcc_checking_opts) \
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
-
-	#	--with-mpfr-include=${S}/mpfr/src \
-	#	--with-mpfr-lib=${WORKDIR}/objdir/mpfr/src/.libs \
-	# The --with-mpfr* lines above are used so that gcc-4.6.4 can find mpfr-3.1.2.
-	# It can find 2.4.2 with no problem automatically but needs help with newer versions
-	# due to mpfr dir structure changes. We look for includes in the source directory,
-	# and libraries in the build (objdir) directory.
-
-	if use arm ; then
-		# Source : https://sourceware.org/bugzilla/attachment.cgi?id=6807
-		# Workaround for a problem introduced with GMP 5.1.0.
-		# If configured by gcc with the "none" host & target, it will result in undefined references
-		# to '__gmpn_invert_limb' during linking.
-		# Should be fixed by next version of gcc.
-		sed -i "s/none-/${arm_arch_without_dash}-/" ${WORKDIR}/objdir/Makefile || die
-	fi
 
 }
 
