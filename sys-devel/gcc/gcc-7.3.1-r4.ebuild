@@ -756,19 +756,17 @@ pkg_postinst() {
 # GCC internal self checking options
 # Usage: gcc_checking_opts [stage1]
 gcc_checking_opts() {
-	local opts_checking_release="assert,runtime"
-	local opts_checking_extra="$([ ${GCC_MAJOR} -ge 8 ] && printf -- "extra")"
-	local opts_checking_yes="${opts_checking_release},misc,tree,gc,rtlflag"
-	local opts_checking_all="${opts_checking_yes},df,fold,gcac,rtl${opts_checking_extra:+,${opts_checking_extra}}"
+	local opts_checking_releasei opts_checking_extra opts_checking_yes opts_checking_all
 	local stage1="${1}${1:+_}"
+
+	local c
+	for c in ${CHECKS_RELEASE} ; do opts_checking_release="${opts_checking_release:+${opts_checking_release},},${c}" ; done
+	for c in ${CHECKS_YES} ; do opts_checking_yes="${opts_checking_yes:+${opts_checking_yes},},${c}" ; done
+	for c in ${CHECKS_EXTRA} ; do opts_checking_extra="${opts_checking_extra:+${opts_checking_extra},},${c}" ; done
+	for c in ${CHECKS_ALL} ; do opts_checking_all="${opts_checking_all:+${opts_checking_all},},${c}" ; done
+	for c in ${CHECKS_VALGRIND} ; do opts_checking_valgrind="${opts_checking_valgrind:+${opts_checking_valrind},},${c}" ; done
+
 	local opts
-	
-	for c in ${CHECKS_RELEASE} ; do opts_checking_release="${opts_checking_release:+${opts_checking_release},},${a}" ; done
-	for c in ${CHECKS_YES} ; do opts_checking_yes="${opts_checking_yes:+${opts_checking_yes},},${a}" ; done
-	for c in ${CHECKS_EXTRA} ; do opts_checking_extra="${opts_checking_extra:+${opts_checking_extra},},${a}" ; done
-	for c in ${CHECKS_ALL} ; do opts_checking_all="${opts_checking_all:+${opts_checking_all},},${a}" ; done
-	for c in ${CHECKS_VALGRIND} ; do opts_checking_valgrind="${opts_checking_valgrind:+${opts_checking_valrind},},${a}" ; done
-	
 	if use ${stage1}checking_no ; then
 		opts="no"
 	else
@@ -779,6 +777,7 @@ gcc_checking_opts() {
 		elif use ${stage1}checking_release ; then
 			opts="${opts_checking_release}"
 		fi
+		local check
 		for check in ${CHECKS_ALL} ${CHECKS_VALGRIND} ; do
 			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
 			if use ${stage1}checking_${check} || ( [ -n "${opts_checking_extra}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
@@ -788,6 +787,15 @@ gcc_checking_opts() {
 			fi
 		done
 	fi
-	
+
+	# If no checking has been defined, set defaults:
+	if [ -z "${opts}" ] ; then
+		if [ -n "${stage1}" ] ; then
+			opts="${opts_checking_yes}"
+		else
+			opts="${opts_checking_release}"
+		fi
+	fi
+
 	printf -- "${opts}"
 }
