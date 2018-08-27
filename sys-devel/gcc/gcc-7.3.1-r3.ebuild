@@ -186,7 +186,8 @@ src_prepare() {
 	eapply "${GCC_SVN_PATCH}"
 
 	# Fix to add entry for 'skylake' in config.gcc's x86_64_archs variable if missing.
-	sed -e '/x86_64_archs="/,/"/ { /\<skylake / b ; s/\<skylake-/skylake &/ }' -i "${S}/gcc/config.gcc"
+	# skylake (non -avx512) appears to be broken in pre gcc-8 and PR target/84331 was not backported to gcc-7
+	# sed -e '/x86_64_archs="/,/"/ { /\<skylake / b ; s/\<skylake-/skylake &/ }' -i "${S}/gcc/config.gcc"
 
 	( use vanilla && use hardened ) \
 		&& die "vanilla and hardened USE flags are incompatible. Disable one of them"
