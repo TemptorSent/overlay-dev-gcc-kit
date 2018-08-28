@@ -101,7 +101,6 @@ SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror:
 # D support
 DLANG_REPO_URI="https://github.com/D-Programming-GDC/GDC.git"
 DLANG_BRANCH="gdc-${GCC_MAJOR}-stable"
-DLANG_COMMIT_DATE="2018-08-26"
 DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
@@ -200,16 +199,10 @@ src_unpack() {
 	# gdc D support
 	if use d ; then
 		O_EGIT_BRANCH="${EGIT_BRANCH}"
-		O_EGIT_COMMIT="${EGIT_COMMIT}"
-		O_EGIT_COMMIT_DATE="${EGIT_COMMIT_DATE}"
 		EGIT_BRANCH="${DLANG_BRANCH}"
-		EGIT_COMMIT="${DLANG_COMMIT}"
-		EGIT_COMMIT_DATE="${DLANG_COMMIT_DATE}"
 		git-r3_fetch "${DLANG_REPO_URI}"
 		git-r3_checkout "${DLANG_REPO_URI}" "${DLANG_CHECKOUT_DIR}"
 		EGIT_BRANCH="${O_EGIT_BRANCH}"
-		EGIT_COMMIT="${O_EGIT_COMMIT}"
-		EGIT_COMMIT_DATE="${O_EGIT_COMMIT_DATE}"
 	fi
 
 	cd $S
@@ -346,7 +339,7 @@ _gcc_prepare_gdc() {
 	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
 
 		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
-		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PF}-gdc-gentoo-compatibility.patch"
+		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/gcc-${GENTOO_GCC_PATCHES_VER}-gdc-gentoo-compatibility.patch"
 		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
 
 		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
@@ -512,7 +505,8 @@ src_configure() {
 		$(use_with graphite cloog) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
-		$(gcc_checking_opts stage1) $(gcc_checking_opts) \
+		--enable-stage1-checking=$(gcc_checking_opts stage1) \
+		--enable-checking=$(gcc_checking_opts) \
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
@@ -759,45 +753,38 @@ pkg_postinst() {
 # GCC internal self checking options
 # Usage: gcc_checking_opts [stage1]
 gcc_checking_opts() {
+	local opts_checking_release="assert,runtime"
+	local opts_checking_extra="$([ ${GCC_MAJOR} -ge 8 ] && printf -- "extra")"
+	local opts_checking_yes="${opts_checking_release},misc,tree,gc,rtlflag"
+	local opts_checking_all="${opts_checking_yes},df,fold,gcac,rtl${opts_checking_extra:+,${opts_checking_extra}}"
 	local stage1="${1}${1:+_}"
-
-	local opts check checks
-	# Setting checking_no overrides all other checks
+	local opts
+	
+	for c in ${CHECKS_RELEASE} ; do opts_checking_release="${opts_checking_release:+${opts_checking_release},},${a}" ; done
+	for c in ${CHECKS_YES} ; do opts_checking_yes="${opts_checking_yes:+${opts_checking_yes},},${a}" ; done
+	for c in ${CHECKS_EXTRA} ; do opts_checking_extra="${opts_checking_extra:+${opts_checking_extra},},${a}" ; done
+	for c in ${CHECKS_ALL} ; do opts_checking_all="${opts_checking_all:+${opts_checking_all},},${a}" ; done
+	for c in ${CHECKS_VALGRIND} ; do opts_checking_valgrind="${opts_checking_valgrind:+${opts_checking_valrind},},${a}" ; done
+	
 	if use ${stage1}checking_no ; then
 		opts="no"
 	else
-		# Priority is all > yes > release
 		if use ${stage1}checking_all ; then
-			checks="${CHECKS_ALL}"
+			opts="${opts_checking_all}"
 		elif use ${stage1}checking_yes ; then
-			checks="${CHECKS_YES}"
+			opts="${opts_checking_yes}"
 		elif use ${stage1}checking_release ; then
-			checks="${CHECKS_RELEASE}"
+			opts="${opts_checking_release}"
 		fi
-
-		# Check if explict use flags are set for any valid checks
 		for check in ${CHECKS_ALL} ${CHECKS_VALGRIND} ; do
 			# Check if the flag is enabled and add to list if not there; force extra to set the same for both scopes.
-			if use ${stage1}checking_${check} || ( [ -n "${CHECKS_EXTRA}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
-				has check "${checks}" || checks="${checks} ${check}"
+			if use ${stage1}checking_${check} || ( [ -n "${opts_checking_extra}" ] && [ "${check}" = "extra" ] && ( use stage1_checking_extra || use checking_extra ) ) ; then
+				if [ -z "$(echo "${opts}" | awk 'BEGIN {RS=","} ; /^'"${check}"'$/ {print $0}')" ] ; then
+					opts="${opts}${opts:+,}${check}"
+				fi
 			fi
-		done
-
-		# If no checking has been defined, set defaults
-		if [ -z "${checks}" ] ; then
-			if [ -n "${stage1}" ] ; then
-				checks="${CHECKS_YES}"
-			else
-				checks="${CHECKS_RELEASE}"
-			fi
-		fi
-
-		# build our opts string
-		for check in ${checks} ; do
-			opts="${opts}${opts:+,}${check}"
 		done
 	fi
-
-
-	printf -- "--enable-${stage1:+${stage1%_}-}checking=${opts}"
+	
+	printf -- "${opts}"
 }

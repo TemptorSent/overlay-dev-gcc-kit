@@ -349,7 +349,7 @@ _gcc_prepare_gdc() {
 	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
 
 		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
-		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PVR}-gdc-gentoo-compatibility.patch"
+		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PF}-gdc-gentoo-compatibility.patch"
 		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
 
 		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
