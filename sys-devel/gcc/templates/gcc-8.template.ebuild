@@ -44,8 +44,7 @@ GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
 SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_PATCH=""
-#GCC_SVN_PATCH="${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
+GCC_SVN_PATCH="${GCC_SVN_REV:+${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch}"
 
 # Gentoo patcheset
 GENTOO_PATCHES_VER="1.3"
@@ -319,61 +318,6 @@ gcc_conf_lang_opts() {
 	printf -- "${conf_gcc_lang}"
 }
 
-gcc_conf_arm_opts() {
-	# ARM
-	local conf_gcc_arm=""
-	if [[ ${CTARGET} == arm* ]] ; then
-		local a arm_arch=${CTARGET%%-*}
-		# Remove trailing endian variations first: eb el be bl b l
-		for a in e{b,l} {b,l}e b l ; do
-			if [[ ${arm_arch} == *${a} ]] ; then
-				arm_arch=${arm_arch%${a}}
-				break
-			fi
-		done
-
-		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		local arm_arch_without_dash=${arm_arch}
-		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
-		# See if this is a valid --with-arch flag
-		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
-		then
-			conf_gcc_arm+=" --with-arch=${arm_arch}"
-		fi
-
-		# Enable hardvfp
-		local float
-		local CTARGET_TMP=${CTARGET:-${CHOST}}
-		if [[ ${CTARGET_TMP//_/-} == *-softfloat-* ]] ; then
-			float="soft"
-		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
-			float="softfp"
-		else
-			if [[ ${CTARGET} == armv[67]* ]]; then
-				case ${CTARGET} in
-					armv6*)
-						conf_gcc_arm+=" --with-fpu=vfp"
-					;;
-					armv7*)
-						realfpu=$( echo ${CFLAGS} | sed 's/.*mfpu=\([^ ]*\).*/\1/')
-						if [[ "$realfpu" == "$CFLAGS" ]] ;then
-							# if sed fails to extract, then it's not set, use default:
-							conf_gcc_arm+=" --with-fpu=vfpv3-d16"
-						else
-							conf_gcc_arm+=" --with-fpu=${realfpu}"
-						fi
-					;;
-				esac
-			fi
-			float="hard"
-		fi
-		conf_gcc_arm+=" --with-float=$float"
-	fi
-
-	printf -- "${conf_gcc_arm}"
-}
-
 src_configure() {
 
 	# Setup additional paths as needed before we start.
@@ -466,15 +410,8 @@ src_configure() {
 	# due to mpfr dir structure changes. We look for includes in the source directory,
 	# and libraries in the build (objdir) directory.
 
-	if use arm ; then
-		# Source : https://sourceware.org/bugzilla/attachment.cgi?id=6807
-		# Workaround for a problem introduced with GMP 5.1.0.
-		# If configured by gcc with the "none" host & target, it will result in undefined references
-		# to '__gmpn_invert_limb' during linking.
-		# Should be fixed by next version of gcc.
-		sed -i "s/none-/${arm_arch_without_dash}-/" ${WORKDIR}/objdir/Makefile || die
-	fi
-
+	# Run post-configure cleanups
+	gcc_conf_arm_post
 }
 
 src_compile() {

@@ -349,7 +349,7 @@ _gcc_prepare_gdc() {
 		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PF}-gdc-gentoo-compatibility.patch"
 		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
 
-		./setup-gcc.sh ../gcc-${PV} || die "Coult not setup GDC."
+		./setup-gcc.sh ../gcc-${PV} || die "Could not setup GDC."
 	popd > /dev/null
 }
 
@@ -461,12 +461,11 @@ src_configure() {
 			# libc is installed:
 			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET}"
 		fi
-		confgcc+=" --disable-libgomp"
 	else
-		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix $(use_enable openmp libgomp)"
+		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix"
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	confgcc+=" $(use_enable openmp libgomp)"
+	confgcc+=" $(if is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
