@@ -465,7 +465,7 @@ src_configure() {
 		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix"
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	confgcc+=" $(if is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
+	confgcc+=" $(if !is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
