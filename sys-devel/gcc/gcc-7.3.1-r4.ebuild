@@ -453,7 +453,7 @@ src_configure() {
 			*-musl*)			needed_libc=musl;;
 			*-uclibc*)			needed_libc=uclibc;;
 		esac
-		confgcc+=" --disable-bootstrap --enable-poision-system-directories"
+		confgcc+=" --disable-bootstrap --enable-poison-system-directories"
 		if ! has_version ${CATEGORY}/${needed_libc}; then
 			# we are building with libc that is not installed:
 			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers"
