@@ -144,6 +144,7 @@ pkg_setup() {
 	MARCH="$(printf -- "${CFLAGS}" | sed -rne 's/.*-march="?([-_[:alnum:]]+).*/\1/p')"
 	MCPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mcpu="?([-_[:alnum:]]+).*/\1/p')"
 	MTUNE="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mtune="?([-_[:alnum:]]+).*/\1/p')"
+	MFPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mfpu="?([-_[:alnum:]]+).*/\1/p')"
 	einfo "Got CFLAGS: ${CFLAGS}"
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
@@ -275,6 +276,17 @@ src_prepare() {
 		# Harden things up:
 		_gcc_prepare_harden
 	fi
+	if is_crosscompile; then
+		# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
+		CC1DIR="${WORKDIR}/${P}/libcc1"
+		sed -i 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' ${CC1DIR}/Makefile.am
+		sed -i 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' ${CC1DIR}/Makefile.am
+		sed -i 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' ${CC1DIR}/Makefile.in
+		sed -i 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' ${CC1DIR}/Makefile.in
+		if [[ ${CTARGET} == avr* ]]; then
+			sed -i 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' ${WORKDIR}/${P}/gcc/config.gcc
+		fi
+	fi    
 	# Ada gnat compiler bootstrap preparation
 	use ada && _gcc_prepare_gnat
 
@@ -409,21 +421,34 @@ gcc_conf_arm_opts() {
 		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
 			float="softfp"
 		else
-			if [[ ${CTARGET} == armv[67]* ]]; then
-				case ${CTARGET} in
-					armv6*)
-						conf_gcc_arm+=" --with-fpu=vfp"
-					;;
-					armv7*)
-						realfpu=$( echo ${CFLAGS} | sed 's/.*mfpu=\([^ ]*\).*/\1/')
-						if [[ "$realfpu" == "$CFLAGS" ]] ;then
-							# if sed fails to extract, then it's not set, use default:
-							conf_gcc_arm+=" --with-fpu=vfpv3-d16"
-						else
-							conf_gcc_arm+=" --with-fpu=${realfpu}"
-						fi
-					;;
-				esac
+			if [[ ${CTARGET} == armv[6-8]* ]]; then # unfortunately, use flags don't work with case conditionals
+				if ${MFPU}=vfp; then					confgcc+=" --with-fpu=vfp"
+				elif ${MFPU}=vfpv3; then				confgcc+=" --with-fpu=vfpv3"
+				elif ${MFPU}=vfpv3-fp16; then			confgcc+=" --with-fpu=vpu-vfpv3-fp16"
+				elif ${MFPU}=vfpv3-d16; then			confgcc+=" --with-fpu=vfpv3-d16"
+				elif ${MFPU}=vfpv3-d16-fp16; then		confgcc+=" --with-fpu=vfpv3-d16-fp16"
+                elif ${MFPU}=vfpv3xd; then				confgcc+=" --with-fpu=vfpv3xd"
+				elif ${MFPU}=vfpv3xd-fp16; then			confgcc+=" --with-fpu=vfpv3xd-fp16"
+				elif ${MFPU}=neon; then					confgcc+=" --with-fpu=neon"
+				elif ${MFPU}=neon-fp16; then			confgcc+=" --with-fpu=neon-fp16"
+				elif ${MFPU}=vfpv4; then				confgcc+=" --with-fpu=vfpv4"
+				elif ${MFPU}=vfpv4-d16; then			confgcc+=" --with-fpu=vfpv4-d16"
+				elif ${MFPU}=fpv4-sp-d16; then			confgcc+=" --with-fpu=fpv4-sp-d16"
+				elif ${MFPU}=neon-vfpv4; then			confgcc+=" --with-fpu=neon-vfpv4"
+				elif ${MFPU}=fpv5-d16; then				confgcc+=" --with-fpu=fpv5-d16"
+				elif ${MFPU}=fpv5-sp-d16; then			confgcc+=" --with-fpu=fpv5-sp-d16"
+				elif ${MFPU}=fp-armv8; then				confgcc+=" --with-fpu=fp-armv8"
+				elif ${MFPU}=neon-fp-armv8; then		confgcc+=" --with-fpu=neon-fp-armv8"
+				elif ${MFPU}=crypto-neon-fp-armv8; then	confgcc+=" --with-fpu=crypto-neon-fp-armv8"
+				else
+					if [[ ${CTARGET} == armv6* ]]; then
+						confgcc+=" --with-fpu=vfp"
+					elif [[ ${CTARGET} == armv7* ]]; then
+						confgcc+=" --with-fpu=vfpv3-d16"
+					else
+						confgcc+=" --with-fpu=fp-armv8"
+					fi					
+				fi
 			fi
 			float="hard"
 		fi
@@ -456,13 +481,13 @@ src_configure() {
 		confgcc+=" --disable-bootstrap --enable-poison-system-directories"
 		if ! has_version ${CATEGORY}/${needed_libc}; then
 			# we are building with libc that is not installed:
-			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers"
+			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
 		elif built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
 			# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
-			confgcc+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET}"
+			confgcc+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET} --disable-libstdcxx"
 		else
 			# libc is installed:
-			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET}"
+			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
 		fi
 	else
 		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix"
@@ -501,8 +526,6 @@ src_configure() {
 		--mandir=${DATAPATH}/man \
 		--infodir=${DATAPATH}/info \
 		--with-gxx-include-dir=${STDCXX_INCDIR} \
-		--enable-libstdcxx-time \
-		--enable-__cxa_atexit \
 		--enable-clocale=gnu \
 		--host=$CHOST \
 		--enable-obsolete \
@@ -518,6 +541,16 @@ src_configure() {
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
+	if use arm && ! is_crosscompile; then
+		# Source : https://sourceware.org/bugzilla/attachment.cgi?id=6807
+		# Workaround for a problem introduced with GMP 5.1.0.
+		# If configured by gcc with the "none" host & target, it will result in undefined references
+		# to '__gmpn_invert_limb' during linking.
+		# Should be fixed by next version of gcc.
+		sed -i "s/none-/${arm_arch_without_dash}-/" ${WORKDIR}/objdir/Makefile || die
+	elif use arm && is_crosscompile; then		
+		sed -i "s/none-/${CHOST%%-*}-/g" ${WORKDIR}/objdir/Makefile || die
+	fi
 }
 
 src_compile() {
@@ -662,7 +695,14 @@ src_install() {
 		eval $(grep ^EXEEXT= "${WORKDIR}"/objdir/gcc/config.log)
 		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${D}"
 	fi
-
+	if is_crosscompile; then
+		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+			# not cruft!  glibc needs this for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
+			dodir /etc/env.d
+			echo -e "PATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}\nROOTPATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}" > \
+				"${D}"/etc/env.d/05gcc-${CTARGET}
+		fi
+	fi    
 	dodir /etc/env.d/gcc
 	create_gcc_env_entry
 
@@ -738,6 +778,9 @@ pkg_postrm() {
 			( set +f
 				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET} 2>/dev/null
 				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET} 2>/dev/null
+                if ! built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+                    rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
+                fi
 				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
 			)
 		fi
