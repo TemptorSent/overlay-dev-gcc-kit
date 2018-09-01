@@ -13,7 +13,8 @@ SLOT="0"
 KEYWORDS="*"
 IUSE=""
 
-PATCHES=( "${FILESDIR}"/${P}-gcc7.patch )
+# Fixed upstream?
+#PATCHES=( "${FILESDIR}"/${P}-gcc7.patch )
 
 src_prepare() {
 	default
