@@ -421,75 +421,21 @@ gcc_conf_arm_opts() {
 		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
 			float="softfp"
 		else
-			if [[ ${CTARGET} == armv[6-8]* ]]; then # unfortunately, use flags don't work with case conditionals
-				            case ${MFPU} in
-				vfp)
+			if [[ ${CTARGET} == armv[6-8]* ]]; then 
+                if [[ -n ${MFPU} ]]; then
+                    confgcc+="--with-fpu ${MFPU}
+                fi
+            else
+                if [[ ${CTARGET} == armv6* ]]; then
                     confgcc+=" --with-fpu=vfp"
-                ;;
-				vfpv3)
-                    confgcc+=" --with-fpu=vfpv3"
-                ;;
-				vfpv3-fp16)
-                    confgcc+=" --with-fpu=vpu-vfpv3-fp16"
-                ;;
-				vfpv3-d16)
+                elif [[ ${CTARGET} == armv7* ]]; then
                     confgcc+=" --with-fpu=vfpv3-d16"
-                ;;
-				vfpv3-d16-fp16)
-                    confgcc+=" --with-fpu=vfpv3-d16-fp16"
-                ;;
-                vfpv3xd)
-                    confgcc+=" --with-fpu=vfpv3xd"
-                ;;
-				vfpv3xd-fp16)
-                    confgcc+=" --with-fpu=vfpv3xd-fp16"
-                ;;
-				neon)
-					confgcc+=" --with-fpu=neon"
-                ;;
-				neon-fp16)
-                    confgcc+=" --with-fpu=neon-fp16"
-                ;;
-				vfpv4)
-                    confgcc+=" --with-fpu=vfpv4"
-                ;;
-				vfpv4-d16)
-                    confgcc+=" --with-fpu=vfpv4-d16"
-                ;;
-				fpv4-sp-d16)
-                    confgcc+=" --with-fpu=fpv4-sp-d16"
-                ;;
-				neon-vfpv4)
-                    confgcc+=" --with-fpu=neon-vfpv4"
-                ;;
-				fpv5-d16)
-                    confgcc+=" --with-fpu=fpv5-d16"
-                ;;
-				fpv5-sp-d16)
-                    confgcc+=" --with-fpu=fpv5-sp-d16"
-                ;;
-				fp-armv8)
+                else
                     confgcc+=" --with-fpu=fp-armv8"
-                ;;
-				neon-fp-armv8)
-                    confgcc+=" --with-fpu=neon-fp-armv8"
-                ;;
-				crypto-neon-fp-armv8)
-                    confgcc+=" --with-fpu=crypto-neon-fp-armv8"
-                ;;
-            esac
-				else
-					if [[ ${CTARGET} == armv6* ]]; then
-						confgcc+=" --with-fpu=vfp"
-					elif [[ ${CTARGET} == armv7* ]]; then
-						confgcc+=" --with-fpu=vfpv3-d16"
-					else
-						confgcc+=" --with-fpu=fp-armv8"
-					fi					
-				fi
-			fi
-			float="hard"
-		fi
+                fi					
+            fi
+        fi
+		float="hard"
 		conf_gcc_arm+=" --with-float=$float"
 	fi
 
