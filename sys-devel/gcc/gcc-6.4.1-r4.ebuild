@@ -423,7 +423,7 @@ gcc_conf_arm_opts() {
 		else
 			if [[ ${CTARGET} == armv[6-8]* ]]; then 
                 if [[ -n ${MFPU} ]]; then
-                    confgcc+="--with-fpu=${MFPU}
+                    confgcc+="--with-fpu=${MFPU}"
                 fi
             else
                 if [[ ${CTARGET} == armv6* ]]; then
