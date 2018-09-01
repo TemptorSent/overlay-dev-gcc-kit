@@ -25,7 +25,7 @@ a directory, so if it's not already set up that way, now's the time to do it.  I
 /etc/portage/package.env/package.env file, crossdev will later place /etc/portage/package.env/<YOUR TUPLE> file(s) in there.
 Leave those alone, as crossdev itself creates, updates, etc. those file(s).
 
-echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc" \
+echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc.conf" \
 >> /etc/portage/package.env/package.env
 
 Set up your local repository (***only necessary until the new gcc ebuilds are in the tree***):
