@@ -279,8 +279,8 @@ src_prepare() {
 	if is_crosscompile; then
 		# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
 		CC1DIR="${WORKDIR}/${P}/libcc1"
-		sed -e 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
-			-e 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+		sed -e 's%cc1libdir = .*%cc1libdir = ${ROOT}usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+			-e 's%plugindir = .*%plugindir = ${ROOT}usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
 			-i "${CC1DIR}"/Makefile.{am,in}
 		if [[ ${CTARGET} == avr* ]]; then
 			sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
@@ -557,7 +557,7 @@ src_test() {
 
 create_gcc_env_entry() {
 	dodir /etc/env.d/gcc
-	local gcc_envd_base="/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}"
+	local gcc_envd_base="${ROOT}etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}"
 	local gcc_envd_file="${D}${gcc_envd_base}"
 	if [ -z $1 ]; then
 		gcc_specs_file=""
@@ -580,7 +580,7 @@ create_gcc_env_entry() {
 }
 
 linkify_compiler_binaries() {
-	dodir /usr/bin
+	dodir ${PREFIX}/bin
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#	   It's constantly out of date.
@@ -599,10 +599,10 @@ linkify_compiler_binaries() {
 		if [[ -f ${CTARGET}-${x} ]] ; then
 			if ! is_crosscompile; then
 				ln -sf ${CTARGET}-${x} ${x}
-				dosym ${BINPATH}/${CTARGET}-${x} /usr/bin/${x}-${GCC_CONFIG_VER}
+				dosym ${BINPATH}/${CTARGET}-${x} ${PREFIX}/bin/${x}-${GCC_CONFIG_VER}
 			fi
 			# Create version-ed symlinks
-			dosym ${BINPATH}/${CTARGET}-${x} /usr/bin/${CTARGET}-${x}-${GCC_CONFIG_VER}
+			dosym ${BINPATH}/${CTARGET}-${x} ${PREFIX}/bin/${CTARGET}-${x}-${GCC_CONFIG_VER}
 		fi
 
 		if [[ -f ${CTARGET}-${x}-${GCC_CONFIG_VER} ]] ; then
@@ -691,7 +691,7 @@ src_install() {
 	tasteful_stripping
 	if is_crosscompile; then
 		( set +f
-			rm -rf "${D%/}/usr/share"/{man,info} 2>/dev/null
+			rm -rf "${D%/}${PREFIX}/share"/{man,info} 2>/dev/null
 			rm -rf "${D}${DATAPATH}"/{man,info} 2>/dev/null
 		)
 	else
@@ -714,8 +714,8 @@ src_install() {
 
 	# replace gcc_movelibs - currently handles only libcc1:
 	( set +f
-		rm ${D%/}/usr/lib{,32,64}/*.la 2>/dev/null
-		mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/ 2>/dev/null
+		rm ${D%/}${PREFIX}/lib{,32,64}/*.la 2>/dev/null
+		mv ${D%/}${PREFIX}/lib{,32,64}/* ${D}${LIBPATH}/ 2>/dev/null
 	)
 
 	# the .la files that are installed have weird embedded single quotes around abs
@@ -732,8 +732,8 @@ src_install() {
 
 	# Don't scan .gox files for executable stacks - false positives
 	if use go; then
-		export QA_EXECSTACK="usr/lib*/go/*/*.gox"
-		export QA_WX_LOAD="usr/lib*/go/*/*.gox"
+		export QA_EXECSTACK="${PREFIX#/}/lib*/go/*/*.gox"
+		export QA_WX_LOAD="${PREFIX#/}/lib*/go/*/*.gox"
 	fi
 
 	# Disable RANDMMAP so PCH works.
@@ -744,11 +744,11 @@ src_install() {
 pkg_postrm() {
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
-		if [[ -z $(ls "${ROOT}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
+		if [[ -z $(ls "${ROOT}etc/env.d/gcc"/${CTARGET}* 2>/dev/null) ]] ; then
 			( set +f
-				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET} 2>/dev/null
-				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET} 2>/dev/null
-				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
+				rm -f "${ROOT}etc/env.d/gcc"/config-${CTARGET} 2>/dev/null
+				rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET} 2>/dev/null
+				rm -f "${ROOT}usr/bin"/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
 			)
 		fi
 		return 0
@@ -759,19 +759,19 @@ pkg_postinst() {
 	if is_crosscompile
 		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
 		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
-			dodir /etc/env.d
-			cat > "${D}"/etc/env.d/05gcc-${CTARGET} <<-EOF
-				PATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
-				ROOTPATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
+			mkdir -p "${ROOT}etc/env.d"
+			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
+				PATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${PV}
+				ROOTPATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${PV}
 			EOF
 		else
-			rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
+			rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
 		fi
 		return
 	fi
 
 	# hack from gentoo - should probably be handled better:
-	( set +f ; cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
+	( set +f ; cp "${ROOT}${DATAPATH}"/c{89,99} "${ROOT}${PREFIX}/bin/" 2>/dev/null )
 
 	compiler_auto_enable ${PV} ${CTARGET}
 }
