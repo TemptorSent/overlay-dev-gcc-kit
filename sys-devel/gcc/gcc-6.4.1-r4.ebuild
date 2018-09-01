@@ -430,7 +430,7 @@ gcc_conf_arm_opts() {
 	esac
 	
 	conf_gcc_arm+=" --with-float=$float"
-	[ -n ${MFPU} ] && conf_gcc_arm+=" --with-fpu=${default_fpu}"
+	[ -n "${MFPU}" ] || conf_gcc_arm+=" --with-fpu=${default_fpu}"
 
 	printf -- "${conf_gcc_arm}"
 }
@@ -748,9 +748,6 @@ pkg_postrm() {
 			( set +f
 				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET} 2>/dev/null
 				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET} 2>/dev/null
-                if ! built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
-                    rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
-                fi
 				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
 			)
 		fi
@@ -767,6 +764,8 @@ pkg_postinst() {
 				PATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
 				ROOTPATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
 			EOF
+		else
+			rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET}
 		fi
 		return
 	fi
