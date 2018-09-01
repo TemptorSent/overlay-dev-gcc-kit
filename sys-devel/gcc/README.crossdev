@@ -1,11 +1,12 @@
-These steps must only be done once for each cross toolchain you wish to make.
 To use crossdev to create cross toolchains you must have crossdev.  Due to growing differences
 in Gentoo's and Funtoo's directory structures I find that the latest version that can be used
 is crossdev-20151026-r1.  You can find it here:
 https://gitweb.gentoo.org/repo/gentoo.git/tree/sys-devel/crossdev/crossdev-20151026-r1.ebuild?id=8e8c1029dcdbc71acd8a50b5c43ed22ad6b92411.
 I haven't tried in a year or so though, perhaps some newer version magically works.
 
-Then you must set up package.env to pass the target's CFLAGS to gcc.  Just create a file in /etc/portage/env.
+The following steps must only be done once for each cross toolchain you wish to make.
+
+Set up package.env to pass the target's CFLAGS to gcc.  Just create a file in /etc/portage/env.
 I'll use the example of my armv7a here:
 
 touch /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
@@ -27,7 +28,7 @@ Leave those alone, as crossdev itself creates, updates, etc. those file(s).
 echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc" \
 >> /etc/portage/package.env/package.env
 
-Set up your local repository (only necessary until the new gcc ebuilds are in the tree):
+Set up your local repository (***only necessary until the new gcc ebuilds are in the tree***):
 
 The 1st step is to install the gcc ebuild of interest in your local portage tree, there are many
 guides detailing the steps to create a local portage tree.
