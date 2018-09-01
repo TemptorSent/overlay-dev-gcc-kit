@@ -283,7 +283,7 @@ src_prepare() {
 			-e 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
 			-i "${CC1DIR}"/Makefile.{am,in}
 		if [[ ${CTARGET} == avr* ]]; then
-			sed -i 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' "${WORKDIR}/${P}/gcc/config.gcc"
+			sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
 		fi
 	fi    
 	# Ada gnat compiler bootstrap preparation
@@ -430,7 +430,7 @@ gcc_conf_arm_opts() {
 	esac
 	
 	conf_gcc_arm+=" --with-float=$float"
-	[ -n "${MFPU}" ] || conf_gcc_arm+=" --with-fpu=${default_fpu}"
+	[ -z "${MFPU}" ] && [ -n "${default_fpu}" ] && conf_gcc_arm+=" --with-fpu=${default_fpu}"
 
 	printf -- "${conf_gcc_arm}"
 }
