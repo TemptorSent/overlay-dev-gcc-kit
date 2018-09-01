@@ -24,7 +24,7 @@ a directory, so if it's not already set up that way, now's the time to do it.  I
 /etc/portage/package.env/package.env file, crossdev will later place /etc/portage/package.env/<YOUR TUPLE> file(s) in there.
 Leave those alone, as crossdev itself creates, updates, etc. those file(s).
 
-echo "/etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi/gcc cross-armv7a-hardfloat-linux-gnueabi-gcc" \
+echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc" \
 >> /etc/portage/package.env/package.env
 
 Set up your local repository (only necessary until the new gcc ebuilds are in the tree):
@@ -32,7 +32,7 @@ Set up your local repository (only necessary until the new gcc ebuilds are in th
 The 1st step is to install the gcc ebuild of interest in your local portage tree, there are many
 guides detailing the steps to create a local portage tree.
 
-Next run crossdev --init-target -t YOUR_TUPLE to create the config files and overlay in your local portage tree.
+Next run crossdev --init-target -t YOUR_TUPLE it will create the config files and overlay in your local portage tree.
 
 Then go to the overlay directory crossdev created, you will find something like this:
 
@@ -51,6 +51,8 @@ lrwxrwxrwx 1 root root 47 Aug 14 2017 glibc -> /var/git/meta-repo/kits/core-kit/
 lrwxrwxrwx 1 root root 57 Aug 14 2017 linux-headers -> /var/git/meta-repo/kits/core-kit/sys-kernel/linux-headers`
 
 Simply remove the gcc link and replace it like this:
+
+ln -s /var/git/<your_repo_name>/sys-devel/gcc gcc
 
 lrwxrwxrwx 1 root root 32 Aug 14 2017 gcc -> /var/git/<your_repo_name>/sys-devel/gcc
 
