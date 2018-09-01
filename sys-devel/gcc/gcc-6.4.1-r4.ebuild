@@ -279,12 +279,11 @@ src_prepare() {
 	if is_crosscompile; then
 		# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
 		CC1DIR="${WORKDIR}/${P}/libcc1"
-		sed -i 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' ${CC1DIR}/Makefile.am
-		sed -i 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' ${CC1DIR}/Makefile.am
-		sed -i 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' ${CC1DIR}/Makefile.in
-		sed -i 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' ${CC1DIR}/Makefile.in
+		sed -e 's%cc1libdir = .*%cc1libdir = /usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+			-e 's%plugindir = .*%plugindir = /usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+			-i "${CC1DIR}"/Makefile.{am,in}
 		if [[ ${CTARGET} == avr* ]]; then
-			sed -i 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' ${WORKDIR}/${P}/gcc/config.gcc
+			sed -i 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' "${WORKDIR}/${P}/gcc/config.gcc"
 		fi
 	fi    
 	# Ada gnat compiler bootstrap preparation
@@ -446,21 +445,24 @@ src_configure() {
 		confgcc+=" --target=${CTARGET}"
 	fi
 	if is_crosscompile; then
+		confgcc+=" --disable-libgomp --disable-bootstrap --enable-poison-system-directories"
+		
 		case ${CTARGET} in
-			*-linux)			needed_libc=no-idea;;
-			*-dietlibc)			needed_libc=dietlibc;;
-			*-elf|*-eabi)		needed_libc=newlib;;
-			*-freebsd*)			needed_libc=freebsd-lib;;
-			*-gnu*)				needed_libc=glibc;;
-			*-klibc)			needed_libc=klibc;;
-			*-musl*)			needed_libc=musl;;
-			*-uclibc*)			needed_libc=uclibc;;
-            avr*)				needed_libc=avr-libc;;            
+			*-linux) needed_libc=no-idea;;
+			*-dietlibc) needed_libc=dietlibc;;
+			*-elf|*-eabi) needed_libc=newlib;;
+			*-freebsd*) needed_libc=freebsd-lib;;
+			*-gnu*) needed_libc=glibc;;
+			*-klibc) needed_libc=klibc;;
+			*-musl*) needed_libc=musl;;
+			*-uclibc*) needed_libc=uclibc;;
+			avr*) needed_libc=avr-libc;;            
 		esac
-		if [[ $CTARGET} == avr* ]]; then
-			confgcc+=" --disable-bootstrap --enable-poison-system-directories --disable-__cxa_atexit"
+		
+		if [[ ${CTARGET} == avr* ]]; then
+			confgcc+=" --disable-__cxa_atexit"
 		else
-			confgcc+=" --disable-bootstrap --enable-poison-system-directories --enable-__cxa_atexit"
+			confgcc+=" --enable-__cxa_atexit"
 		fi        
 		if ! has_version ${CATEGORY}/${needed_libc}; then
 			# we are building with libc that is not installed:
@@ -476,7 +478,7 @@ src_configure() {
 		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	confgcc+=" $(if ! is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
+	! is_crosscompile && confgcc+=" $(use_enable openmp libgomp)"
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
@@ -671,14 +673,6 @@ src_install() {
 		eval $(grep ^EXEEXT= "${WORKDIR}"/objdir/gcc/config.log)
 		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${D}"
 	fi
-	if is_crosscompile; then
-		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
-			# not cruft!  glibc needs this for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
-			dodir /etc/env.d
-			echo -e "PATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}\nROOTPATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}" > \
-				"${D}"/etc/env.d/05gcc-${CTARGET}
-		fi
-	fi    
 	dodir /etc/env.d/gcc
 	create_gcc_env_entry
 
@@ -765,7 +759,15 @@ pkg_postrm() {
 }
 
 pkg_postinst() {
-	if is_crosscompile ; then
+	if is_crosscompile
+		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
+		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+			dodir /etc/env.d
+			cat > "${D}"/etc/env.d/05gcc-${CTARGET} <<-EOF
+				PATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
+				ROOTPATH=/usr/${CHOST}/${CTARGET}/gcc-bin/${PV}
+			EOF
+		fi
 		return
 	fi
 
