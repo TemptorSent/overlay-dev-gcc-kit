@@ -16,14 +16,16 @@ ssh odroid grep CFLAGS /etc/portage/make.conf
 
 Copy those flags and echo them to file:
 
-echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' >> /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
+echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' \
+>> /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
 
 Now reference that file in /etc/portage/package.env.  Crossdev will demand that package.env be
 a directory, so if it's not already set up that way, now's the time to do it.  I have a
 /etc/portage/package.env/package.env file, crossdev will later place /etc/portage/package.env/<YOUR TUPLE> file(s) in there.
 Leave those alone, as crossdev itself creates, updates, etc. those file(s).
 
-echo "/etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi/gcc cross-armv7a-hardfloat-linux-gnueabi-gcc" >> /etc/portage/package.env/package.env
+echo "/etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi/gcc cross-armv7a-hardfloat-linux-gnueabi-gcc" \
+>> /etc/portage/package.env/package.env
 
 Set up your local repository (only necessary until the new gcc ebuilds are in the tree):
 
