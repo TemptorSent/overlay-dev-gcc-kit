@@ -61,23 +61,23 @@ Now create or add to an existing /etc/portage/bashrc file (I'd like to get rid o
 
 case ${CATEGORY}/${PN} in
     cross-<tuple>/gcc)
-    if [ "${EBUILD_PHASE}" == "postinst" ]; then
-        GCC_VER=$(<tuple>-gcc --version|grep Funtoo|cut -d- -f5|cut -d " " -f3|cut -d ")" -f1)
-        rm /usr/<tuple>/etc/localtime 2>&1 >/dev/null
-        ln -s /usr/share/zoneinfo/YOUR_LOCAL_TIMEZONE /usr/<tuple>/etc/localtime
-        rm /usr/<tuple>/lib/libstdc*
-        ln -s /usr/lib/gcc/<tuple>/$GCC_VER/libstdc* /usr/<tuple>/lib/
-        STRING='SEARCH_DIRS_MASK="/usr/<tuple> '
-        for DIR in /usr/lib/gcc/<tuple>/*; do
-            STRING+="$DIR "
-        done
-        for DIR in /usr/lib64/gcc/<tuple>/*; do
-            STRING+="$DIR "
-        done
-        STRING=${STRING%?}
-        STRING+='"' 
-        echo $STRING>/etc/revdep-rebuild/05<tuple>
-    fi
+        if [ "${EBUILD_PHASE}" == "postinst" ]; then
+            GCC_VER=$(<tuple>-gcc --version|grep Funtoo|cut -d- -f5|cut -d " " -f3|cut -d ")" -f1)
+            rm /usr/<tuple>/etc/localtime 2>&1 >/dev/null
+            ln -s /usr/share/zoneinfo/YOUR_LOCAL_TIMEZONE /usr/<tuple>/etc/localtime
+            rm /usr/<tuple>/lib/libstdc*
+            ln -s /usr/lib/gcc/<tuple>/$GCC_VER/libstdc* /usr/<tuple>/lib/
+            STRING='SEARCH_DIRS_MASK="/usr/<tuple> '
+            for DIR in /usr/lib/gcc/<tuple>/*; do
+                STRING+="$DIR "
+            done
+            for DIR in /usr/lib64/gcc/<tuple>/*; do
+                STRING+="$DIR "
+            done
+            STRING=${STRING%?}
+            STRING+='"' 
+            echo $STRING>/etc/revdep-rebuild/05<tuple>
+        fi
     ;;
 esac
 Of course, replace all instances of <tuple> with the tuple you are building for, and YOUR_LOCAL_TIMEZONE
@@ -85,24 +85,24 @@ with your local timezone.  So here's my armv7a example on an x86_64 machine:
 
 case ${CATEGORY}/${PN} in
 	cross-armv7a-hardfloat-linux-gnueabi/gcc)
-					if [ "${EBUILD_PHASE}" == "postinst" ]; then
-							GCC_VER=$(armv7a-hardfloat-linux-gnueabi-gcc --version|grep Funtoo|cut -d- -f5|cut -d " " -f3|cut -d ")" -f1)
-							rm /usr/armv7a-hardfloat-linux-gnueabi/etc/localtime 2>&1 >/dev/null
-							ln -s /usr/share/zoneinfo/PST8PDT /usr/armv7a-hardfloat-linux-gnueabi/etc/localtime
-							rm /usr/armv7a-hardfloat-linux-gnueabi/lib/libstdc*
-							ln -s /usr/lib/gcc/armv7a-hardfloat-linux-gnueabi/$GCC_VER/libstdc* /usr/armv7a-hardfloat-linux-gnueabi/lib/
-							STRING='SEARCH_DIRS_MASK="/usr/armv7a-hardfloat-linux-gnueabi '
-							for DIR in /usr/lib/gcc/armv7a-hardfloat-linux-gnueabi/*; do
-								STRING+="$DIR "
-							done
-							for DIR in /usr/lib64/gcc/armv7a-hardfloat-linux-gnueabi/*; do
-								STRING+="$DIR "
-							done
-							STRING=${STRING%?}
-							STRING+='"' 
-							echo $STRING>/etc/revdep-rebuild/05armv7a-hardfloat-linux-gnueabi
-					fi
-			;;
+        if [ "${EBUILD_PHASE}" == "postinst" ]; then
+            GCC_VER=$(armv7a-hardfloat-linux-gnueabi-gcc --version|grep Funtoo|cut -d- -f5|cut -d " " -f3|cut -d ")" -f1)
+            rm /usr/armv7a-hardfloat-linux-gnueabi/etc/localtime 2>&1 >/dev/null
+            ln -s /usr/share/zoneinfo/PST8PDT /usr/armv7a-hardfloat-linux-gnueabi/etc/localtime
+            rm /usr/armv7a-hardfloat-linux-gnueabi/lib/libstdc*
+            ln -s /usr/lib/gcc/armv7a-hardfloat-linux-gnueabi/$GCC_VER/libstdc* /usr/armv7a-hardfloat-linux-gnueabi/lib/
+            STRING='SEARCH_DIRS_MASK="/usr/armv7a-hardfloat-linux-gnueabi '
+            for DIR in /usr/lib/gcc/armv7a-hardfloat-linux-gnueabi/*; do
+                STRING+="$DIR "
+            done
+            for DIR in /usr/lib64/gcc/armv7a-hardfloat-linux-gnueabi/*; do
+                STRING+="$DIR "
+            done
+            STRING=${STRING%?}
+            STRING+='"' 
+            echo $STRING>/etc/revdep-rebuild/05armv7a-hardfloat-linux-gnueabi
+        fi
+;;
 esac            
 
 Now you can run crossdev to create your toolchain
