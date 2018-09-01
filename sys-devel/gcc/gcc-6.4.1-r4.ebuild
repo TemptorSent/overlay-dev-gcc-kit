@@ -391,53 +391,47 @@ gcc_conf_lang_opts() {
 	printf -- "${conf_gcc_lang}"
 }
 
+# ARM
 gcc_conf_arm_opts() {
-	# ARM
+	# Skip the rest if not an arm target
+	[[ ${CTARGET} == arm* ]] || return
+
 	local conf_gcc_arm=""
-	if [[ ${CTARGET} == arm* ]] ; then
-		local a arm_arch=${CTARGET%%-*}
-		# Remove trailing endian variations first: eb el be bl b l
-		for a in e{b,l} {b,l}e b l ; do
-			if [[ ${arm_arch} == *${a} ]] ; then
-				arm_arch=${arm_arch%${a}}
-				break
-			fi
-		done
-
-		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
-		# See if this is a valid --with-arch flag
-		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
-		then
-			conf_gcc_arm+=" --with-arch=${arm_arch}"
+	local arm_arch=${CTARGET%%-*}
+	local a
+	# Remove trailing endian variations first: eb el be bl b l
+	for a in e{b,l} {b,l}e b l ; do
+		if [[ ${arm_arch} == *${a} ]] ; then
+			arm_arch=${arm_arch%${a}}
+			break
 		fi
+	done
 
-		# Enable hardvfp
-		local float
-		local CTARGET_TMP=${CTARGET:-${CHOST}}
-		if [[ ${CTARGET_TMP//_/-} == *-softfloat-* ]] ; then
-			float="soft"
-		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
-			float="softfp"
-		else
-			if [[ ${CTARGET} == armv[6-8]* ]]; then 
-                if [[ -n ${MFPU} ]]; then
-                    confgcc+="--with-fpu=${MFPU}"
-                fi
-            else
-                if [[ ${CTARGET} == armv6* ]]; then
-                    confgcc+=" --with-fpu=vfp"
-                elif [[ ${CTARGET} == armv7* ]]; then
-                    confgcc+=" --with-fpu=vfpv3-d16"
-                else
-                    confgcc+=" --with-fpu=fp-armv8"
-                fi					
-            fi
-        fi
-		float="hard"
-		conf_gcc_arm+=" --with-float=$float"
+	# Convert armv7{a,r,m} to armv7-{a,r,m}
+	[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
+
+	# See if this is a valid --with-arch flag
+	if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
+		. "${srcdir}"/config.gcc) &>/dev/null
+	then
+		conf_gcc_arm+=" --with-arch=${arm_arch}"
 	fi
+
+	# Enable hardvfp
+	local float="hard"
+	local default_fpu=""
+
+	case "${CTARGET}" in
+		*[-_]softfloat[-_]*) float="soft" ;;
+		*[-_]softfp[-_]* ]] float="softfp" ;;
+		armv[56]*) default_fpu="vfpv2" ;;
+		armv7ve*) default_fpu="vfpv4-d16" ;;
+		armv7*) default_fpu="vfpv3-d16" ;;
+		amrv8*) default_fpu="fp-armv8" ;;
+	esac
+	
+	conf_gcc_arm+=" --with-float=$float"
+	[ -n ${MFPU} ] && conf_gcc_arm+=" --with-fpu=${default_fpu}"
 
 	printf -- "${conf_gcc_arm}"
 }
@@ -479,7 +473,7 @@ src_configure() {
 			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
 		fi
 	else
-		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix"
+		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
 	confgcc+=" $(if ! is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
@@ -503,7 +497,7 @@ src_configure() {
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
-       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}"
+       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}${MFPU:+ --with-fpu=${MFPU}}"
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
@@ -530,14 +524,7 @@ src_configure() {
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
-	if use arm && ! is_crosscompile; then
-		# Source : https://sourceware.org/bugzilla/attachment.cgi?id=6807
-		# Workaround for a problem introduced with GMP 5.1.0.
-		# If configured by gcc with the "none" host & target, it will result in undefined references
-		# to '__gmpn_invert_limb' during linking.
-		# Should be fixed by next version of gcc.
-		sed -i "s/none-/${arm_arch_without_dash}-/" ${WORKDIR}/objdir/Makefile || die
-	elif use arm && is_crosscompile; then		
+	if use arm && is_crosscompile; then		
 		sed -i "s/none-/${CHOST%%-*}-/g" ${WORKDIR}/objdir/Makefile || die
 	fi
 }
