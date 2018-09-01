@@ -422,24 +422,62 @@ gcc_conf_arm_opts() {
 			float="softfp"
 		else
 			if [[ ${CTARGET} == armv[6-8]* ]]; then # unfortunately, use flags don't work with case conditionals
-				if ${MFPU}=vfp; then					confgcc+=" --with-fpu=vfp"
-				elif ${MFPU}=vfpv3; then				confgcc+=" --with-fpu=vfpv3"
-				elif ${MFPU}=vfpv3-fp16; then			confgcc+=" --with-fpu=vpu-vfpv3-fp16"
-				elif ${MFPU}=vfpv3-d16; then			confgcc+=" --with-fpu=vfpv3-d16"
-				elif ${MFPU}=vfpv3-d16-fp16; then		confgcc+=" --with-fpu=vfpv3-d16-fp16"
-                elif ${MFPU}=vfpv3xd; then				confgcc+=" --with-fpu=vfpv3xd"
-				elif ${MFPU}=vfpv3xd-fp16; then			confgcc+=" --with-fpu=vfpv3xd-fp16"
-				elif ${MFPU}=neon; then					confgcc+=" --with-fpu=neon"
-				elif ${MFPU}=neon-fp16; then			confgcc+=" --with-fpu=neon-fp16"
-				elif ${MFPU}=vfpv4; then				confgcc+=" --with-fpu=vfpv4"
-				elif ${MFPU}=vfpv4-d16; then			confgcc+=" --with-fpu=vfpv4-d16"
-				elif ${MFPU}=fpv4-sp-d16; then			confgcc+=" --with-fpu=fpv4-sp-d16"
-				elif ${MFPU}=neon-vfpv4; then			confgcc+=" --with-fpu=neon-vfpv4"
-				elif ${MFPU}=fpv5-d16; then				confgcc+=" --with-fpu=fpv5-d16"
-				elif ${MFPU}=fpv5-sp-d16; then			confgcc+=" --with-fpu=fpv5-sp-d16"
-				elif ${MFPU}=fp-armv8; then				confgcc+=" --with-fpu=fp-armv8"
-				elif ${MFPU}=neon-fp-armv8; then		confgcc+=" --with-fpu=neon-fp-armv8"
-				elif ${MFPU}=crypto-neon-fp-armv8; then	confgcc+=" --with-fpu=crypto-neon-fp-armv8"
+				            case ${MFPU} in
+				vfp)
+                    confgcc+=" --with-fpu=vfp"
+                ;;
+				vfpv3)
+                    confgcc+=" --with-fpu=vfpv3"
+                ;;
+				vfpv3-fp16)
+                    confgcc+=" --with-fpu=vpu-vfpv3-fp16"
+                ;;
+				vfpv3-d16)
+                    confgcc+=" --with-fpu=vfpv3-d16"
+                ;;
+				vfpv3-d16-fp16)
+                    confgcc+=" --with-fpu=vfpv3-d16-fp16"
+                ;;
+                vfpv3xd)
+                    confgcc+=" --with-fpu=vfpv3xd"
+                ;;
+				vfpv3xd-fp16)
+                    confgcc+=" --with-fpu=vfpv3xd-fp16"
+                ;;
+				neon)
+					confgcc+=" --with-fpu=neon"
+                ;;
+				neon-fp16)
+                    confgcc+=" --with-fpu=neon-fp16"
+                ;;
+				vfpv4)
+                    confgcc+=" --with-fpu=vfpv4"
+                ;;
+				vfpv4-d16)
+                    confgcc+=" --with-fpu=vfpv4-d16"
+                ;;
+				fpv4-sp-d16)
+                    confgcc+=" --with-fpu=fpv4-sp-d16"
+                ;;
+				neon-vfpv4)
+                    confgcc+=" --with-fpu=neon-vfpv4"
+                ;;
+				fpv5-d16)
+                    confgcc+=" --with-fpu=fpv5-d16"
+                ;;
+				fpv5-sp-d16)
+                    confgcc+=" --with-fpu=fpv5-sp-d16"
+                ;;
+				fp-armv8)
+                    confgcc+=" --with-fpu=fp-armv8"
+                ;;
+				neon-fp-armv8)
+                    confgcc+=" --with-fpu=neon-fp-armv8"
+                ;;
+				crypto-neon-fp-armv8)
+                    confgcc+=" --with-fpu=crypto-neon-fp-armv8"
+                ;;
+            esac
 				else
 					if [[ ${CTARGET} == armv6* ]]; then
 						confgcc+=" --with-fpu=vfp"
@@ -477,8 +515,13 @@ src_configure() {
 			*-klibc)			needed_libc=klibc;;
 			*-musl*)			needed_libc=musl;;
 			*-uclibc*)			needed_libc=uclibc;;
+            avr*)				needed_libc=avr-libc;;            
 		esac
-		confgcc+=" --disable-bootstrap --enable-poison-system-directories"
+		if [[ $CTARGET} == avr* ]]; then
+			confgcc+=" --disable-bootstrap --enable-poison-system-directories --disable-__cxa_atexit"
+		else
+			confgcc+=" --disable-bootstrap --enable-poison-system-directories --enable-__cxa_atexit"
+		fi        
 		if ! has_version ${CATEGORY}/${needed_libc}; then
 			# we are building with libc that is not installed:
 			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
