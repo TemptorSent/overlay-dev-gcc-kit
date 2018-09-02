@@ -336,6 +336,19 @@ _gcc_prepare_harden_8() {
 }
 
 _gcc_prepare_cross() {
+	case ${CTARGET} in
+		*-linux) TARGET_LIBC=no-idea;;
+		*-dietlibc) TARGET_LIBC=dietlibc;;
+		*-elf|*-eabi) TARGET_LIBC=newlib;;
+		*-freebsd*) TARGET_LIBC=freebsd-lib;;
+		*-gnu*) TARGET_LIBC=glibc;;
+		*-klibc) TARGET_LIBC=klibc;;
+		*-musl*) TARGET_LIBC=musl;;
+		*-uclibc*) TARGET_LIBC=uclibc;;
+		avr*) TARGET_LIBC=avr-libc;;            
+	esac
+	export TARGET_LIBC
+
 	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
 	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
 		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
@@ -442,18 +455,6 @@ gcc_conf_cross_options() {
 	local conf_gcc_cross
 	conf_gcc_cross+=" --disable-libgomp --disable-bootstrap --enable-poison-system-directories"
 
-	case ${CTARGET} in
-		*-linux) needed_libc=no-idea;;
-		*-dietlibc) needed_libc=dietlibc;;
-		*-elf|*-eabi) needed_libc=newlib;;
-		*-freebsd*) needed_libc=freebsd-lib;;
-		*-gnu*) needed_libc=glibc;;
-		*-klibc) needed_libc=klibc;;
-		*-musl*) needed_libc=musl;;
-		*-uclibc*) needed_libc=uclibc;;
-		avr*) needed_libc=avr-libc;;            
-	esac
-
 	if [[ ${CTARGET} == avr* ]]; then
 		conf_gcc_cross+=" --disable-__cxa_atexit"
 	else
@@ -461,10 +462,10 @@ gcc_conf_cross_options() {
 	fi
 
 	# Handle bootstrapping cross-compiler and libc in lock-step
-	if ! has_version ${CATEGORY}/${needed_libc}; then
+	if ! has_version ${CATEGORY}/${TARGET_LIBC}; then
 		# we are building with libc that is not installed:
 		conf_gcc_cross+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
-	elif built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+	elif built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
 		# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
 		conf_gcc_cross+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET} --disable-libstdcxx"
 	else
@@ -778,7 +779,7 @@ pkg_postrm() {
 pkg_postinst() {
 	if is_crosscompile; then
 		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
-		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+		if ! has_version ${CATEGORY}/${TARGET_LIBC} || built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
 			mkdir -p "${ROOT}etc/env.d"
 			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
 				PATH=${BINPATH}
