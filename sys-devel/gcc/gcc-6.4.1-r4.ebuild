@@ -175,7 +175,7 @@ pkg_setup() {
 	LIBPATH=${PREFIX}/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}
 	STDCXX_INCDIR=${LIBPATH}/include/g++-v${GCC_BRANCH_VER}
 
-	use doc || export MAKEINFO="true"
+	use doc || export MAKEINFO="/dev/null"
 }
 
 src_unpack() {
@@ -276,16 +276,9 @@ src_prepare() {
 		# Harden things up:
 		_gcc_prepare_harden
 	fi
-	if is_crosscompile; then
-		# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
-		CC1DIR="${WORKDIR}/${P}/libcc1"
-		sed -e 's%cc1libdir = .*%cc1libdir = ${ROOT}usr/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
-			-e 's%plugindir = .*%plugindir = ${ROOT}usr/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
-			-i "${CC1DIR}"/Makefile.{am,in}
-		if [[ ${CTARGET} == avr* ]]; then
-			sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
-		fi
-	fi    
+	
+	is_crosscompile && _gcc_prepare_cross
+
 	# Ada gnat compiler bootstrap preparation
 	use ada && _gcc_prepare_gnat
 
@@ -340,6 +333,16 @@ _gcc_prepare_harden_8() {
 		[ ${GCC_MAJOR} -ge 8 ] && cat "${GENTOO_PATCHES_DIR}/55_all_extra-options.patch" | sed -e 's/EXTRA_OPTIONS/ENABLE_DEFAULT_LINK_NOW/g' -e 's/ENABLE_ESP/ENABLE_DEFAULT_SCP/g' > "${T}/55_all_hardening-options.patch"
 		eapply "${T}/55_all_hardening-options.patch"
 		use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+}
+
+_gcc_prepare_cross() {
+	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
+	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
+	if [[ ${CTARGET} == avr* ]]; then
+		sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
+	fi
 }
 
 _gcc_prepare_gnat() {
@@ -435,6 +438,43 @@ gcc_conf_arm_opts() {
 	printf -- "${conf_gcc_arm}"
 }
 
+gcc_conf_cross_options() {
+	local conf_gcc_cross
+	conf_gcc_cross+=" --disable-libgomp --disable-bootstrap --enable-poison-system-directories"
+
+	case ${CTARGET} in
+		*-linux) needed_libc=no-idea;;
+		*-dietlibc) needed_libc=dietlibc;;
+		*-elf|*-eabi) needed_libc=newlib;;
+		*-freebsd*) needed_libc=freebsd-lib;;
+		*-gnu*) needed_libc=glibc;;
+		*-klibc) needed_libc=klibc;;
+		*-musl*) needed_libc=musl;;
+		*-uclibc*) needed_libc=uclibc;;
+		avr*) needed_libc=avr-libc;;            
+	esac
+
+	if [[ ${CTARGET} == avr* ]]; then
+		conf_gcc_cross+=" --disable-__cxa_atexit"
+	else
+		conf_gcc_cross+=" --enable-__cxa_atexit"
+	fi
+
+	# Handle bootstrapping cross-compiler and libc in lock-step
+	if ! has_version ${CATEGORY}/${needed_libc}; then
+		# we are building with libc that is not installed:
+		conf_gcc_cross+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
+	elif built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
+		# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
+		conf_gcc_cross+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET} --disable-libstdcxx"
+	else
+		# libc is installed:
+		conf_gcc_cross+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
+	fi
+	
+	printf -- "${conf_gcc_cross}"
+}
+
 src_configure() {
 
 	# Setup additional paths as needed before we start.
@@ -445,40 +485,15 @@ src_configure() {
 		confgcc+=" --target=${CTARGET}"
 	fi
 	if is_crosscompile; then
-		confgcc+=" --disable-libgomp --disable-bootstrap --enable-poison-system-directories"
-		
-		case ${CTARGET} in
-			*-linux) needed_libc=no-idea;;
-			*-dietlibc) needed_libc=dietlibc;;
-			*-elf|*-eabi) needed_libc=newlib;;
-			*-freebsd*) needed_libc=freebsd-lib;;
-			*-gnu*) needed_libc=glibc;;
-			*-klibc) needed_libc=klibc;;
-			*-musl*) needed_libc=musl;;
-			*-uclibc*) needed_libc=uclibc;;
-			avr*) needed_libc=avr-libc;;            
-		esac
-		
-		if [[ ${CTARGET} == avr* ]]; then
-			confgcc+=" --disable-__cxa_atexit"
-		else
-			confgcc+=" --enable-__cxa_atexit"
-		fi        
-		if ! has_version ${CATEGORY}/${needed_libc}; then
-			# we are building with libc that is not installed:
-			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
-		elif built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
-			# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
-			confgcc+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET} --disable-libstdcxx"
-		else
-			# libc is installed:
-			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
-		fi
+		confgcc+="$(gcc_conf_cross_options)"
 	else
-		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
+		confgcc+=--enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
+		confgcc+=" $(use_enable openmp libgomp)"	
+		confgcc+=" --enable-bootstrap --enable-shared
 	fi
+	
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	! is_crosscompile && confgcc+=" $(use_enable openmp libgomp)"
+
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
@@ -526,9 +541,14 @@ src_configure() {
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
 
-	if use arm && is_crosscompile; then		
+	is_crosscompile && gcc_conf_cross_post
+}
+
+gcc_conf_cross_post() {
+	if use arm ; then		
 		sed -i "s/none-/${CHOST%%-*}-/g" ${WORKDIR}/objdir/Makefile || die
 	fi
+
 }
 
 src_compile() {
@@ -761,8 +781,8 @@ pkg_postinst() {
 		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
 			mkdir -p "${ROOT}etc/env.d"
 			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
-				PATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${PV}
-				ROOTPATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${PV}
+				PATH=${BINPATH}
+				ROOTPATH=${BINPATH}
 			EOF
 		else
 			rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
@@ -773,6 +793,8 @@ pkg_postinst() {
 	# hack from gentoo - should probably be handled better:
 	( set +f ; cp "${ROOT}${DATAPATH}"/c{89,99} "${ROOT}${PREFIX}/bin/" 2>/dev/null )
 
+	PATH="${BINPATH}:${PATH}"
+	export PATH
 	compiler_auto_enable ${PV} ${CTARGET}
 }
 
