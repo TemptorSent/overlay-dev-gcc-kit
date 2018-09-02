@@ -2,6 +2,8 @@ To use crossdev to create cross toolchains you must have crossdev.  Due to growi
 in Gentoo's and Funtoo's directory structures I find that the latest version that can be used
 is crossdev-20151026-r1.  You can find it here:
 https://gitweb.gentoo.org/repo/gentoo.git/tree/sys-devel/crossdev/crossdev-20151026-r1.ebuild?id=8e8c1029dcdbc71acd8a50b5c43ed22ad6b92411.
+It will need the use-new-path-for-functions.sh.patch, you can find that here:
+https://chromium-review.googlesource.com/c/chromiumos/overlays/portage-stable/+/386946/2/sys-devel/crossdev/files/use-new-path-for-functions.sh.patch
 I haven't tried in a year or so though, perhaps some newer version magically works.
 
 The following steps must only be done once for each cross toolchain you wish to make.
