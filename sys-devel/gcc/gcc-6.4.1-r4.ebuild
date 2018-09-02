@@ -422,7 +422,7 @@ gcc_conf_arm_opts() {
 
 	case "${CTARGET}" in
 		*[-_]softfloat[-_]*) float="soft" ;;
-		*[-_]softfp[-_]* ]] float="softfp" ;;
+		*[-_]softfp[-_]*) float="softfp" ;;
 		armv[56]*) default_fpu="vfpv2" ;;
 		armv7ve*) default_fpu="vfpv4-d16" ;;
 		armv7*) default_fpu="vfpv3-d16" ;;
@@ -756,7 +756,7 @@ pkg_postrm() {
 }
 
 pkg_postinst() {
-	if is_crosscompile
+	if is_crosscompile; then
 		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
 		if ! has_version ${CATEGORY}/${needed_libc} || built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
 			mkdir -p "${ROOT}etc/env.d"
