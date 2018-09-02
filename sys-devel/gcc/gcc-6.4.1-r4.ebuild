@@ -499,7 +499,7 @@ src_configure() {
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
-       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}${MFPU:+ --with-fpu=${MFPU}}"
+       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}${MFPU:+ --with-fpu=${MFPU}}"
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
