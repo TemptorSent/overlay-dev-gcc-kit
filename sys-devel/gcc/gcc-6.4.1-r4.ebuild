@@ -487,9 +487,9 @@ src_configure() {
 	if is_crosscompile; then
 		confgcc+="$(gcc_conf_cross_options)"
 	else
-		confgcc+=--enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
+		confgcc+=" --enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
 		confgcc+=" $(use_enable openmp libgomp)"	
-		confgcc+=" --enable-bootstrap --enable-shared
+		confgcc+=" --enable-bootstrap --enable-shared"
 	fi
 	
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
