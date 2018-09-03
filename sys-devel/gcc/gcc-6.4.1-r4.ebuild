@@ -149,7 +149,7 @@ pkg_setup() {
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
 	einfo "MTUNE: ${MTUNE}"
-	einfo "MFPU: ${MFPU}"
+	if is_crosscompile; then einfo "MFPU: ${MFPU}";fi
     
 	# Don't pass cflags/ldflags through.
 	unset CFLAGS

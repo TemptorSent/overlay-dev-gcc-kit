@@ -1,4 +1,4 @@
-# Distributed under the terms of the GNU General Public License v2
+7# Distributed under the terms of the GNU General Public License v2
 
 # See README.txt for usage notes.
 
@@ -146,7 +146,7 @@ pkg_setup() {
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
 	einfo "MTUNE: ${MTUNE}"
-	einfo "MFPU: ${MFPU}"
+	if is_crosscompile; then einfo "MFPU: ${MFPU}";fi
 
 	# Don't pass cflags/ldflags through.
 	unset CFLAGS
