@@ -777,15 +777,15 @@ pkg_postrm() {
 pkg_postinst() {
 	if is_crosscompile; then
 		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
-		if ! has_version ${CATEGORY}/${TARGET_LIBC} || built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
+		#if ! has_version ${CATEGORY}/${TARGET_LIBC} || built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
 			mkdir -p "${ROOT}etc/env.d"
 			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
 				PATH=${BINPATH}
 				ROOTPATH=${BINPATH}
 			EOF
-		else
-			rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
-		fi
+		#else
+		#	rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
+		# fi
 		return
 	fi
 
