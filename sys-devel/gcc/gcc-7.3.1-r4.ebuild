@@ -149,7 +149,7 @@ pkg_setup() {
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
 	einfo "MTUNE: ${MTUNE}"
-	if is_crosscompile; then einfo "MFPU: ${MFPU}";fi    
+	einfo "MFPU: ${MFPU}"
 
 	# Don't pass cflags/ldflags through.
 	unset CFLAGS
@@ -532,6 +532,7 @@ src_configure() {
 		--host=$CHOST \
 		--enable-obsolete \
 		--disable-werror \
+        --disable-isl-version-check
 		--enable-libmudflap \
 		--enable-secureplt \
 		--enable-lto \
