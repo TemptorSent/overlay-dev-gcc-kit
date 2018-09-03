@@ -149,7 +149,8 @@ pkg_setup() {
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
 	einfo "MTUNE: ${MTUNE}"
-
+	einfo "MFPU: ${MFPU}"
+    
 	# Don't pass cflags/ldflags through.
 	unset CFLAGS
 	unset CXXFLAGS
