@@ -141,6 +141,7 @@ pkg_setup() {
 	MARCH="$(printf -- "${CFLAGS}" | sed -rne 's/.*-march="?([-_[:alnum:]]+).*/\1/p')"
 	MCPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mcpu="?([-_[:alnum:]]+).*/\1/p')"
 	MTUNE="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mtune="?([-_[:alnum:]]+).*/\1/p')"
+	MFPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mfpu="?([-_[:alnum:]]+).*/\1/p')"    
 	einfo "Got CFLAGS: ${CFLAGS}"
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
@@ -171,7 +172,7 @@ pkg_setup() {
 	LIBPATH=${PREFIX}/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}
 	STDCXX_INCDIR=${LIBPATH}/include/g++-v${GCC_BRANCH_VER}
 
-	use doc || export MAKEINFO="true"
+	use doc || export MAKEINFO="/dev/null"
 }
 
 src_unpack() {
@@ -272,6 +273,9 @@ src_prepare() {
 		# Harden things up:
 		_gcc_prepare_harden
 	fi
+    
+	is_crosscompile && _gcc_prepare_cross    
+    
 	# Ada gnat compiler bootstrap preparation
 	use ada && _gcc_prepare_gnat
 
@@ -328,6 +332,29 @@ _gcc_prepare_harden_8() {
 		use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
 }
 
+_gcc_prepare_cross() {
+	case ${CTARGET} in
+		*-linux) TARGET_LIBC=no-idea;;
+		*-dietlibc) TARGET_LIBC=dietlibc;;
+		*-elf|*-eabi) TARGET_LIBC=newlib;;
+		*-freebsd*) TARGET_LIBC=freebsd-lib;;
+		*-gnu*) TARGET_LIBC=glibc;;
+		*-klibc) TARGET_LIBC=klibc;;
+		*-musl*) TARGET_LIBC=musl;;
+		*-uclibc*) TARGET_LIBC=uclibc;;
+		avr*) TARGET_LIBC=avr-libc;;            
+	esac
+	export TARGET_LIBC
+
+	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
+	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
+	if [[ ${CTARGET} == avr* ]]; then
+		sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
+	fi
+}
+
 _gcc_prepare_gnat() {
 	if use amd64; then
 		einfo "Preparing gnat64 for ada:"
@@ -376,58 +403,74 @@ gcc_conf_lang_opts() {
 	printf -- "${conf_gcc_lang}"
 }
 
+# ARM
 gcc_conf_arm_opts() {
-	# ARM
+	# Skip the rest if not an arm target
+	[[ ${CTARGET} == arm* ]] || return
+
 	local conf_gcc_arm=""
-	if [[ ${CTARGET} == arm* ]] ; then
-		local a arm_arch=${CTARGET%%-*}
-		# Remove trailing endian variations first: eb el be bl b l
-		for a in e{b,l} {b,l}e b l ; do
-			if [[ ${arm_arch} == *${a} ]] ; then
-				arm_arch=${arm_arch%${a}}
-				break
-			fi
-		done
-
-		# Convert armv7{a,r,m} to armv7-{a,r,m}
-		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
-		# See if this is a valid --with-arch flag
-		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
-		then
-			conf_gcc_arm+=" --with-arch=${arm_arch}"
+	local arm_arch=${CTARGET%%-*}
+	local a
+	# Remove trailing endian variations first: eb el be bl b l
+	for a in e{b,l} {b,l}e b l ; do
+		if [[ ${arm_arch} == *${a} ]] ; then
+			arm_arch=${arm_arch%${a}}
+			break
 		fi
+	done
 
-		# Enable hardvfp
-		local float
-		local CTARGET_TMP=${CTARGET:-${CHOST}}
-		if [[ ${CTARGET_TMP//_/-} == *-softfloat-* ]] ; then
-			float="soft"
-		elif [[ ${CTARGET_TMP//_/-} == *-softfp-* ]] ; then
-			float="softfp"
-		else
-			if [[ ${CTARGET} == armv[67]* ]]; then
-				case ${CTARGET} in
-					armv6*)
-						conf_gcc_arm+=" --with-fpu=vfp"
-					;;
-					armv7*)
-						realfpu=$( echo ${CFLAGS} | sed 's/.*mfpu=\([^ ]*\).*/\1/')
-						if [[ "$realfpu" == "$CFLAGS" ]] ;then
-							# if sed fails to extract, then it's not set, use default:
-							conf_gcc_arm+=" --with-fpu=vfpv3-d16"
-						else
-							conf_gcc_arm+=" --with-fpu=${realfpu}"
-						fi
-					;;
-				esac
-			fi
-			float="hard"
-		fi
-		conf_gcc_arm+=" --with-float=$float"
-	fi
+	# Convert armv7{a,r,m} to armv7-{a,r,m}
+	[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
+
+	# See if this is a valid --with-arch flag
+	if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
+		. "${srcdir}"/config.gcc) &>/dev/null
+	then
+		conf_gcc_arm+=" --with-arch=${arm_arch}"
+    fi
+
+	# Enable hardvfp
+	local float="hard"
+	local default_fpu=""
+
+	case "${CTARGET}" in
+		*[-_]softfloat[-_]*) float="soft" ;;
+		*[-_]softfp[-_]*) float="softfp" ;;
+		armv[56]*) default_fpu="vfpv2" ;;
+		armv7ve*) default_fpu="vfpv4-d16" ;;
+		armv7*) default_fpu="vfpv3-d16" ;;
+		amrv8*) default_fpu="fp-armv8" ;;
+	esac
+	
+	conf_gcc_arm+=" --with-float=$float"
+	[ -z "${MFPU}" ] && [ -n "${default_fpu}" ] && conf_gcc_arm+=" --with-fpu=${default_fpu}"
 
 	printf -- "${conf_gcc_arm}"
+}
+
+gcc_conf_cross_options() {
+	local conf_gcc_cross
+	conf_gcc_cross+=" --disable-libgomp --disable-bootstrap --enable-poison-system-directories"
+
+	if [[ ${CTARGET} == avr* ]]; then
+		conf_gcc_cross+=" --disable-__cxa_atexit"
+	else
+		conf_gcc_cross+=" --enable-__cxa_atexit"
+	fi
+
+	# Handle bootstrapping cross-compiler and libc in lock-step
+	if ! has_version ${CATEGORY}/${TARGET_LIBC}; then
+		# we are building with libc that is not installed:
+		conf_gcc_cross+=" --disable-shared --disable-libatomic --disable-threads --without-headers --disable-libstdcxx"
+	elif built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
+		# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
+		conf_gcc_cross+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET} --disable-libstdcxx"
+	else
+		# libc is installed:
+		conf_gcc_cross+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
+	fi
+	
+	printf -- "${conf_gcc_cross}"
 }
 
 src_configure() {
@@ -440,32 +483,15 @@ src_configure() {
 		confgcc+=" --target=${CTARGET}"
 	fi
 	if is_crosscompile; then
-		case ${CTARGET} in
-			*-linux)			needed_libc=no-idea;;
-			*-dietlibc)			needed_libc=dietlibc;;
-			*-elf|*-eabi)		needed_libc=newlib;;
-			*-freebsd*)			needed_libc=freebsd-lib;;
-			*-gnu*)				needed_libc=glibc;;
-			*-klibc)			needed_libc=klibc;;
-			*-musl*)			needed_libc=musl;;
-			*-uclibc*)			needed_libc=uclibc;;
-		esac
-		confgcc+=" --disable-bootstrap --enable-poison-system-directories"
-		if ! has_version ${CATEGORY}/${needed_libc}; then
-			# we are building with libc that is not installed:
-			confgcc+=" --disable-shared --disable-libatomic --disable-threads --without-headers"
-		elif built_with_use --hidden --missing false ${CATEGORY}/${needed_libc} crosscompile_opts_headers-only; then
-			# libc installed, but has USE="crosscompile_opts_headers-only" to only install headers:
-			confgcc+=" --disable-shared --disable-libatomic --with-sysroot=${PREFIX}/${CTARGET}"
-		else
-			# libc is installed:
-			confgcc+=" --with-sysroot=${PREFIX}/${CTARGET}"
-		fi
+		confgcc+="$(gcc_conf_cross_options)"
 	else
-		confgcc+=" --enable-bootstrap --enable-shared --enable-threads=posix"
+		confgcc+=" --enable-threads=posix --enable-__cxa_atexit --enable-libstdcxx-time"
+		confgcc+=" $(use_enable openmp libgomp)"	
+		confgcc+=" --enable-bootstrap --enable-shared"
 	fi
+	
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
-	confgcc+=" $(if ! is_crosscompile ; then use_enable openmp libgomp ; else printf -- "--disable-libgomp"; fi)"
+
 	confgcc+=" $(use_enable sanitize libsanitizer)"
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
@@ -486,7 +512,7 @@ src_configure() {
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
-       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}"
+       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}${MFPU:+ --with-fpu=${MFPU}}"
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
@@ -498,8 +524,6 @@ src_configure() {
 		--mandir=${DATAPATH}/man \
 		--infodir=${DATAPATH}/info \
 		--with-gxx-include-dir=${STDCXX_INCDIR} \
-		--enable-libstdcxx-time \
-		--enable-__cxa_atexit \
 		--enable-clocale=gnu \
 		--host=$CHOST \
 		--enable-obsolete \
@@ -514,6 +538,14 @@ src_configure() {
 		$(gcc_checking_opts stage1) $(gcc_checking_opts) \
 		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc \
 		|| die "configure fail"
+
+	is_crosscompile && gcc_conf_cross_post
+}
+
+gcc_conf_cross_post() {
+	if use arm ; then		
+		sed -i "s/none-/${CHOST%%-*}-/g" ${WORKDIR}/objdir/Makefile || die
+	fi
 
 }
 
@@ -543,7 +575,7 @@ src_test() {
 
 create_gcc_env_entry() {
 	dodir /etc/env.d/gcc
-	local gcc_envd_base="/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}"
+	local gcc_envd_base="${ROOT}etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}"
 	local gcc_envd_file="${D}${gcc_envd_base}"
 	if [ -z $1 ]; then
 		gcc_specs_file=""
@@ -566,7 +598,7 @@ create_gcc_env_entry() {
 }
 
 linkify_compiler_binaries() {
-	dodir /usr/bin
+	dodir ${PREFIX}/bin
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#	   It's constantly out of date.
@@ -585,10 +617,10 @@ linkify_compiler_binaries() {
 		if [[ -f ${CTARGET}-${x} ]] ; then
 			if ! is_crosscompile; then
 				ln -sf ${CTARGET}-${x} ${x}
-				dosym ${BINPATH}/${CTARGET}-${x} /usr/bin/${x}-${GCC_CONFIG_VER}
+				dosym ${BINPATH}/${CTARGET}-${x} ${PREFIX}/bin/${x}-${GCC_CONFIG_VER}
 			fi
 			# Create version-ed symlinks
-			dosym ${BINPATH}/${CTARGET}-${x} /usr/bin/${CTARGET}-${x}-${GCC_CONFIG_VER}
+			dosym ${BINPATH}/${CTARGET}-${x} ${PREFIX}/bin/${CTARGET}-${x}-${GCC_CONFIG_VER}
 		fi
 
 		if [[ -f ${CTARGET}-${x}-${GCC_CONFIG_VER} ]] ; then
@@ -659,8 +691,7 @@ src_install() {
 		eval $(grep ^EXEEXT= "${WORKDIR}"/objdir/gcc/config.log)
 		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${D}"
 	fi
-
-	dodir /etc/env.d/gcc
+ 	dodir /etc/env.d/gcc
 	create_gcc_env_entry
 
 # CLEANUPS:
@@ -678,7 +709,7 @@ src_install() {
 	tasteful_stripping
 	if is_crosscompile; then
 		( set +f
-			rm -rf "${D%/}/usr/share"/{man,info} 2>/dev/null
+			rm -rf "${D%/}${PREFIX}/share"/{man,info} 2>/dev/null
 			rm -rf "${D}${DATAPATH}"/{man,info} 2>/dev/null
 		)
 	else
@@ -701,8 +732,8 @@ src_install() {
 
 	# replace gcc_movelibs - currently handles only libcc1:
 	( set +f
-		rm ${D%/}/usr/lib{,32,64}/*.la 2>/dev/null
-		mv ${D%/}/usr/lib{,32,64}/* ${D}${LIBPATH}/ 2>/dev/null
+		rm ${D%/}${PREFIX}/lib{,32,64}/*.la 2>/dev/null
+		mv ${D%/}${PREFIX}/lib{,32,64}/* ${D}${LIBPATH}/ 2>/dev/null
 	)
 
 	# the .la files that are installed have weird embedded single quotes around abs
@@ -719,8 +750,8 @@ src_install() {
 
 	# Don't scan .gox files for executable stacks - false positives
 	if use go; then
-		export QA_EXECSTACK="usr/lib*/go/*/*.gox"
-		export QA_WX_LOAD="usr/lib*/go/*/*.gox"
+		export QA_EXECSTACK="${PREFIX#/}/lib*/go/*/*.gox"
+		export QA_WX_LOAD="${PREFIX#/}/lib*/go/*/*.gox"
 	fi
 
 	# Disable RANDMMAP so PCH works.
@@ -731,11 +762,11 @@ src_install() {
 pkg_postrm() {
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
-		if [[ -z $(ls "${ROOT}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
+		if [[ -z $(ls "${ROOT}etc/env.d/gcc"/${CTARGET}* 2>/dev/null) ]] ; then
 			( set +f
-				rm -f "${ROOT}"/etc/env.d/gcc/config-${CTARGET} 2>/dev/null
-				rm -f "${ROOT}"/etc/env.d/??gcc-${CTARGET} 2>/dev/null
-				rm -f "${ROOT}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
+				rm -f "${ROOT}etc/env.d/gcc"/config-${CTARGET} 2>/dev/null
+				rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET} 2>/dev/null
+				rm -f "${ROOT}usr/bin"/${CTARGET}-{gcc,{g,c}++}{,32,64} 2>/dev/null
 			)
 		fi
 		return 0
@@ -743,13 +774,25 @@ pkg_postrm() {
 }
 
 pkg_postinst() {
-	if is_crosscompile ; then
+	if is_crosscompile; then
+		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
+		if ! has_version ${CATEGORY}/${TARGET_LIBC} || built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
+			mkdir -p "${ROOT}etc/env.d"
+			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
+				PATH=${BINPATH}
+				ROOTPATH=${BINPATH}
+			EOF
+		else
+			rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
+		fi
 		return
 	fi
 
 	# hack from gentoo - should probably be handled better:
-	( set +f ; cp "${ROOT}/${DATAPATH}"/c{89,99} "${ROOT}"/usr/bin/ 2>/dev/null )
+	( set +f ; cp "${ROOT}${DATAPATH}"/c{89,99} "${ROOT}${PREFIX}/bin/" 2>/dev/null )
 
+	PATH="${BINPATH}:${PATH}"
+	export PATH
 	compiler_auto_enable ${PV} ${CTARGET}
 }
 
