@@ -500,7 +500,7 @@ src_configure() {
 	confgcc+=" $(use_enable pie default-pie)"
 	confgcc+=" $(use_enable ssp default-ssp)"
 	! use pch && confgcc+=" --disable-libstdcxx-pch"
-	#use graphite && confgcc+=" --disable-isl-version-check"
+	use graphite && confgcc+=" --disable-isl-version-check"
 
 	use vtv && confgcc+=" --enable-vtable-verify --enable-libvtv"
 
@@ -532,7 +532,6 @@ src_configure() {
 		--host=$CHOST \
 		--enable-obsolete \
 		--disable-werror \
-        --disable-isl-version-check
 		--enable-libmudflap \
 		--enable-secureplt \
 		--enable-lto \
@@ -780,17 +779,11 @@ pkg_postrm() {
 
 pkg_postinst() {
 	if is_crosscompile; then
-		# Install env.d file with paths glibc needs for 2nd (real) pass else it fails, we'll delete it on gcc 2nd pass
-		#if ! has_version ${CATEGORY}/${TARGET_LIBC} || built_with_use --hidden --missing false ${CATEGORY}/${TARGET_LIBC} crosscompile_opts_headers-only; then
 			mkdir -p "${ROOT}etc/env.d"
 			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
 				PATH=${BINPATH}
 				ROOTPATH=${BINPATH}
 			EOF
-		#else
-		#	rm -f "${ROOT}etc/env.d"/??gcc-${CTARGET}
-		#fi
-		return
 	fi
 
 	# hack from gentoo - should probably be handled better:
@@ -798,7 +791,7 @@ pkg_postinst() {
 
 	PATH="${BINPATH}:${PATH}"
 	export PATH
-	compiler_auto_enable ${PV} ${CTARGET}
+   	compiler_auto_enable ${PV} ${CTARGET}
 }
 
 
