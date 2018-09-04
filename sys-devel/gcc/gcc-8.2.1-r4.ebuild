@@ -744,7 +744,7 @@ src_install() {
 		rm ${D%/}${PREFIX}/lib{,32,64}/*.la 2>/dev/null
 		einfo -- "Relocating libs to '${LIBPATH}':"
 		for l in "${D%/}${PREFIX}"/lib{,32,64}/* ; do
-			einfo -- "Moving '${l}' to '${LIBPATH}/${l##*/}'."
+			einfo -- "Moving '${l#${D}}' to '${LIBPATH}/${l##*/}'."
 			mv "${l}" "${D}/${LIBPATH}/" 2>/dev/null || die
 		done
 	)
