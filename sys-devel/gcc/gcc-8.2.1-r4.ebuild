@@ -190,11 +190,6 @@ src_unpack() {
 
 	# GNAT ada support
 	if use ada ; then
-		if [ -f  gcc/ada/libgnat/s-parame.adb ] ; then
-			einfo "Patching ada stack handling..."
-			grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
-		fi
-
 		if use amd64; then
 			unpack $GNAT64 || die "ada setup failed"
 		elif use x86; then
@@ -348,7 +343,7 @@ _gcc_prepare_cross() {
 		*-klibc) TARGET_LIBC=klibc;;
 		*-musl*) TARGET_LIBC=musl;;
 		*-uclibc*) TARGET_LIBC=uclibc;;
-		avr*) TARGET_LIBC=avr-libc;;            
+		avr*) TARGET_LIBC=avr-libc;;
 	esac
 	export TARGET_LIBC
 
@@ -362,6 +357,13 @@ _gcc_prepare_cross() {
 }
 
 _gcc_prepare_gnat() {
+	export GNATBOOT="${S}/gnatboot"
+
+	if [ -f  gcc/ada/libgnat/s-parame.adb ] ; then
+		einfo "Patching ada stack handling..."
+		grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
+	fi
+
 	if use amd64; then
 		einfo "Preparing gnat64 for ada:"
 		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
@@ -375,7 +377,7 @@ _gcc_prepare_gnat() {
 	fi
 
 	# Setup additional paths as needed before we start.
-	use ada && export PATH="${S}/gnatboot/bin:${PATH}"
+	use ada && export PATH="${GNATBOOT}/bin:${PATH}"
 }
 
 _gcc_prepare_gdc() {
@@ -738,8 +740,13 @@ src_install() {
 
 	# replace gcc_movelibs - currently handles only libcc1:
 	( set +f
+		einfo -- "Removing extraneous libtool '.la' files from '${PREFIX}/lib*}'."
 		rm ${D%/}${PREFIX}/lib{,32,64}/*.la 2>/dev/null
-		mv ${D%/}${PREFIX}/lib{,32,64}/* ${D}${LIBPATH}/ 2>/dev/null
+		einfo -- "Relocating libs to '${LIBPATH}':"
+		for l in "${D%/}${PREFIX}"/lib{,32,64}/* ; do
+			einfo -- "Moving '${l}' to '${LIBPATH}/${l##*/}'."
+			mv "${l}" "${D}/${LIBPATH}/" 2>/dev/null || die
+		done
 	)
 
 	# the .la files that are installed have weird embedded single quotes around abs
