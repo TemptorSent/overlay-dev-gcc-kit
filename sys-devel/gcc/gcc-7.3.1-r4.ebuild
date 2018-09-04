@@ -144,7 +144,7 @@ pkg_setup() {
 	MARCH="$(printf -- "${CFLAGS}" | sed -rne 's/.*-march="?([-_[:alnum:]]+).*/\1/p')"
 	MCPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mcpu="?([-_[:alnum:]]+).*/\1/p')"
 	MTUNE="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mtune="?([-_[:alnum:]]+).*/\1/p')"
-	MFPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mfpu="?([-_[:alnum:]]+).*/\1/p')"    
+	MFPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mfpu="?([-_[:alnum:]]+).*/\1/p')"
 	einfo "Got CFLAGS: ${CFLAGS}"
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
@@ -193,6 +193,11 @@ src_unpack() {
 
 	# GNAT ada support
 	if use ada ; then
+		if [ -f  gcc/ada/libgnat/s-parame.adb ] ; then
+			einfo "Patching ada stack handling..."
+			grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
+		fi
+
 		if use amd64; then
 			unpack $GNAT64 || die "ada setup failed"
 		elif use x86; then
@@ -277,9 +282,9 @@ src_prepare() {
 		# Harden things up:
 		_gcc_prepare_harden
 	fi
-    
+
 	is_crosscompile && _gcc_prepare_cross
-    
+
 	# Ada gnat compiler bootstrap preparation
 	use ada && _gcc_prepare_gnat
 
@@ -434,7 +439,7 @@ gcc_conf_arm_opts() {
 		. "${srcdir}"/config.gcc) &>/dev/null
 	then
 		conf_gcc_arm+=" --with-arch=${arm_arch}"
-    fi
+	fi
 
 	# Enable hardvfp
 	local float="hard"
@@ -476,7 +481,7 @@ gcc_conf_cross_options() {
 		# libc is installed:
 		conf_gcc_cross+=" --with-sysroot=${PREFIX}/${CTARGET} --enable-libstdcxx-time"
 	fi
-	
+
 	printf -- "${conf_gcc_cross}"
 }
 
@@ -493,7 +498,7 @@ src_configure() {
 		confgcc+=" $(use_enable openmp libgomp)"	
 		confgcc+=" --enable-bootstrap --enable-shared"
 	fi
-	
+
 	[[ -n ${CBUILD} ]] && confgcc+=" --build=${CBUILD}"
 
 	confgcc+=" $(use_enable sanitize libsanitizer)"
@@ -516,7 +521,7 @@ src_configure() {
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
 	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
 
-       use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}${MFPU:+ --with-fpu=${MFPU}}"
+	use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}${MFPU:+ --with-fpu=${MFPU}}"
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
 		$(use_enable libssp) \
 		$(use_enable multilib) \
