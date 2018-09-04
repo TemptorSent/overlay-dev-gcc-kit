@@ -37,8 +37,8 @@ done
 SLOT="${PV}"
 
 # Version of archive before patches.
-GCC_ARCHIVE_VER="6.4.0"
-GCC_SVN_REV="263864"
+GCC_ARCHIVE_VER="7.3.0"
+GCC_SVN_REV="263865"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
@@ -51,31 +51,31 @@ GCC_SVN_PATCH="${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_R
 # Gentoo patcheset
 GENTOO_PATCHES_VER="1.6"
 GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
-#GENTOO_GCC_PATCHES_VER="6.4.0"
+#GENTOO_GCC_PATCHES_VER="7.3.0"
 GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
 GENTOO_PATCHES=(
 	10_all_default-fortify-source.patch
+	# These are configurable options for us
 	#11_all_default-warn-format-security.patch
 	#12_all_default-warn-trampolines.patch
 	13_all_default-ssp-fix.patch
 	25_all_alpha-mieee-default.patch
-	29_all_arm_armv4t-default.patch
 	34_all_ia64_note.GNU-stack.patch
-	42_all_superh_default-multilib.patch
 	50_all_libiberty-asprintf.patch
 	51_all_libiberty-pic.patch
 	54_all_nopie-all-flags.patch
+	# We'll handle this ourselves.
 	#55_all_extra-options.patch
 	90_all_pr55930-dependency-tracking.patch
-	92_all_asan-signal_h.patch
-	#93_all_ucontext-to-ucontext_t.patch
-	#94_all_no-sigaltstack.patch
-	#95_all_static_override_pie.patch
-	#96_all_powerpc_pie.patch
-	#97_all_libjava-ucontext.patch
-	#98_all_libsanitizer-avoidustat.h-glibc-2.28-part-1.patch
-	#99_all_libsanitizer-avoidustat.h-glibc-2.28-part-2.patch
-	#100_all_isl-include.patch
+	# Already included in svn patches
+	#91_all_bmi-i386-PR-target-81763.patch
+	92_all_sh-drop-sysroot-suffix.patch
+	# Already included in svn patches
+	#93_all_copy-constructible-fix.patch
+	#94_all_libgo-remove-ustat.h-glibc-2.28.patch
+	#95_all_libsanitizer-avoidustat.h-glibc-2.28-part-1.patch
+	#96_all_libsanitizer-avoidustat.h-glibc-2.28-part-2.patch
+	#97_all_isl-include.patch
 )
 
 # Math libraries:
@@ -365,11 +365,6 @@ _gcc_prepare_cross() {
 }
 
 _gcc_prepare_gnat() {
-	if [ -f  gcc/ada/libgnat/s-parame.adb ] ; then
-		einfo "Patching ada stack handling..."
-		grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
-	fi
-
 	if use amd64; then
 		einfo "Preparing gnat64 for ada:"
 		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
@@ -411,7 +406,7 @@ gcc_conf_lang_opts() {
 
 	use go && GCC_LANG+=",go"
 
-	use ada && GCC_LANG+=",ada" && conf_gcc_lang+=" CC=${GNATBOOT}/bin/gcc CXX=${GNATBOOT}/bin/g++ AR=${GNATBOOT}/bin/gcc-ar AS=as LD=ld NM=${GNATBOOT}/bin/gcc-nm RANLIB=${GNATBOOT}/bin/gcc-ranlib"
+	use ada && GCC_LANG+=",ada"
 
 	use d && GCC_LANG+=",d"
 

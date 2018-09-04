@@ -403,7 +403,7 @@ gcc_conf_lang_opts() {
 
 	use go && GCC_LANG+=",go"
 
-	use ada && GCC_LANG+=",ada"
+	use ada && GCC_LANG+=",ada" && conf_gcc_lang+=" CC=${GNATBOOT}/bin/gcc CXX=${GNATBOOT}/bin/g++ AR=${GNATBOOT}/bin/gcc-ar AS=as LD=ld NM=${GNATBOOT}/bin/gcc-nm RANLIB=${GNATBOOT}/bin/gcc-ranlib"
 
 	use d && GCC_LANG+=",d"
 
