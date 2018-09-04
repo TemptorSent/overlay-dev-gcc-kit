@@ -1,4 +1,4 @@
-7# Distributed under the terms of the GNU General Public License v2
+# Distributed under the terms of the GNU General Public License v2
 
 # See README.txt for usage notes.
 
