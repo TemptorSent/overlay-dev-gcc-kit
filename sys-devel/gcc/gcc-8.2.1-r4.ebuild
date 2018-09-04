@@ -155,7 +155,7 @@ pkg_setup() {
 	unset LDFLAGS
 	unset GCC_SPECS # we don't want to use the installed compiler's specs to build gcc!
 	unset LANGUAGES #265283
-	PREFIX=/usr
+	export PREFIX=/usr
 	CTARGET=${CTARGET:-${CHOST}}
 	[[ ${CATEGORY} == cross-* ]] && CTARGET=${CATEGORY/cross-}
 	GCC_BRANCH_VER=${SLOT}

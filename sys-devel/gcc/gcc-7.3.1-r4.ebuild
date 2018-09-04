@@ -158,7 +158,7 @@ pkg_setup() {
 	unset LDFLAGS
 	unset GCC_SPECS # we don't want to use the installed compiler's specs to build gcc!
 	unset LANGUAGES #265283
-	PREFIX=/usr
+	export PREFIX=/usr
 	CTARGET=${CTARGET:-${CHOST}}
 	[[ ${CATEGORY} == cross-* ]] && CTARGET=${CATEGORY/cross-}
 	GCC_BRANCH_VER=${SLOT}
@@ -245,6 +245,11 @@ src_prepare() {
 	# gcc version, rather than *our* gcc version. Manually fix this:
 
 	sed -i -e "s/^version :=.*/version := ${GCC_CONFIG_VER}/" ${S}/libgcc/Makefile.in || die
+
+	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
+	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
 
 	if ! use vanilla; then
 
@@ -355,10 +360,6 @@ _gcc_prepare_cross() {
 	esac
 	export TARGET_LIBC
 
-	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
-	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
-		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
-		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
 	if [[ ${CTARGET} == avr* ]]; then
 		sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
 	fi
