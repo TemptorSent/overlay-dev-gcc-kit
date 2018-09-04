@@ -368,6 +368,9 @@ _gcc_prepare_gnat() {
 	else
 		die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
 	fi
+
+	# Setup additional paths as needed before we start.
+	use ada && export PATH="${S}/gnatboot/bin:${PATH}"
 }
 
 _gcc_prepare_gdc() {
@@ -475,9 +478,6 @@ gcc_conf_cross_options() {
 }
 
 src_configure() {
-
-	# Setup additional paths as needed before we start.
-	use ada && export PATH="${S}/gnatboot/bin:${PATH}"
 
 	local confgcc
 	if is_crosscompile || tc-is-cross-compiler; then
