@@ -679,8 +679,7 @@ src_install() {
 
 # PRE-MAKE INSTALL SECTION:
 
-	# from toolchain eclass:
-	# Do allow symlinks in private gcc include dir as this can break the build
+	# Don't allow symlinks in private gcc include dir as this can break the build
 	( set +f ; find gcc/include*/ -type l -delete 2>/dev/null )
 
 	# Remove generated headers, as they can cause things to break
@@ -748,8 +747,10 @@ src_install() {
 		rm ${D%/}${PREFIX}/lib{,32,64}/*.la 2>/dev/null
 		einfo -- "Relocating libs to '${LIBPATH}':"
 		for l in "${D%/}${PREFIX}"/lib{,32,64}/* ; do
-			einfo -- "Moving '${l#${D}}' to '${LIBPATH}/${l##*/}'."
-			mv "${l}" "${D}/${LIBPATH}/" 2>/dev/null || die
+			[ -f "${l}" ] || continue
+			mydir="${l%/*}" ; myfile="${l##*/}"
+			einfo -- "Moving '${myfile}' from '${mydir#${D}}' to '${LIBPATH}'."
+			cd "${mydir}" && mv "${myfile}" "${D}${LIBPATH}/${myfile}" 2>/dev/null || die
 		done
 	)
 
