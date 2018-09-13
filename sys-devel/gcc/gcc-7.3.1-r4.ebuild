@@ -775,6 +775,24 @@ src_install() {
 	# Disable RANDMMAP so PCH works.
 	pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1"
 	pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1plus"
+	if is_crosscompile ; then
+		dosym /etc/localtime /usr/${CTARGET}/etc/localtime
+		for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
+			dosym $file /usr/${CTARGET}/lib/
+		done
+		insinto "/etc/revdep-rebuild"
+		string="SEARCH_dirS_MASK=\"/usr/${CTARGET} "
+		for dir in /usr/lib/gcc/${CTARGET}/*; do
+			string+="$dir "
+		done
+		for dir in /usr/lib64/gcc/${CTARGET}/*; do
+			string+="$dir "
+		done
+		string=${string%?}
+		string+='"' 
+		echo $string>05${CTARGET}
+		doins 05${CTARGET}
+	fi	
 }
 
 pkg_postrm() {
