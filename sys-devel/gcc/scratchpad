@@ -1,0 +1,36 @@
+
+        
+        
+            GCC_VER=$(<tuple>-gcc --version|grep Funtoo|cut -d- -f5|cut -d " " -f3|cut -d ")" -f1)
+            ${PV}
+
+            rm /usr/<tuple>/etc/localtime 2>&1 >/dev/null
+            newins /usr/${CTARGET}/etc/localtime /usr/${CTARGET}/etc/localtime.old
+            
+            
+            ln -s /usr/share/zoneinfo/YOUR_LOCAL_TIMEZONE /usr/<tuple>/etc/localtime
+            dosym /etc/localtime /usr/${CTARGET}/etc/localtime
+            
+            
+            rm /usr/<tuple>/lib/libstdc*
+            don't care, leave 'em
+            
+            ln -s /usr/lib/gcc/<tuple>/$GCC_VER/libstdc* /usr/<tuple>/lib/
+            for file in $(ls ${WORKDIR}/usr/lib/gcc/${CTARGET}/$GCC_VER/libstdc*)
+                dosym $file ${WORKDIR}/usr/${CTARGET}/lib/$(basename $file)
+            done
+            
+            
+            STRING='SEARCH_DIRS_MASK="/usr/<tuple> '
+            for DIR in /usr/lib/gcc/<tuple>/*; do
+                STRING+="$DIR "
+            done
+            for DIR in /usr/lib64/gcc/<tuple>/*; do
+                STRING+="$DIR "
+            done
+            STRING=${STRING%?}
+            STRING+='"' 
+            echo $STRING>/etc/revdep-rebuild/05<tuple>
+        fi
+    ;;
+esac
