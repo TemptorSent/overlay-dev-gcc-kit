@@ -640,8 +640,9 @@ linkify_compiler_binaries() {
 
 tasteful_stripping() {
 	# Now do the fun stripping stuff
-	env RESTRICT="" CHOST=${CHOST} prepstrip "${D}${BINPATH}"
-	env RESTRICT="" CHOST=${CTARGET} prepstrip "${D}${LIBPATH}"
+	[[ ! is_crosscompile ]] && \
+		env RESTRICT="" CHOST=${CHOST} prepstrip "${D}${BINPATH}" ; \
+		env RESTRICT="" CHOST=${CTARGET} prepstrip "${D}${LIBPATH}"
 	# gcc used to install helper binaries in lib/ but then moved to libexec/
 	[[ -d ${D}${PREFIX}/libexec/gcc ]] && \
 		env RESTRICT="" CHOST=${CHOST} prepstrip "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}"
@@ -769,15 +770,17 @@ src_install() {
 	fi
 
 	# Disable RANDMMAP so PCH works.
-	pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1"
-	pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1plus"
+	[[ ! is_crosscompile ]] && \
+		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1" ; \
+		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1plus"
 	if is_crosscompile ; then
 		dosym /etc/localtime /usr/${CTARGET}/etc/localtime
 		for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
-			dosym $file /usr/${CTARGET}/lib/
+			dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
 		done
+		mkdir -p /etc/revdep-rebuild
 		insinto "/etc/revdep-rebuild"
-		string="SEARCH_dirS_MASK=\"/usr/${CTARGET} "
+		string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
 		for dir in /usr/lib/gcc/${CTARGET}/*; do
 			string+="$dir "
 		done
@@ -786,8 +789,11 @@ src_install() {
 		done
 		string=${string%?}
 		string+='"' 
-		echo $string>05${CTARGET}
-		doins 05${CTARGET}
+		if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
+			string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
+		fi
+		echo $string>05cross-${CTARGET}
+		doins 05cross-${CTARGET}
 	fi
 }
 
@@ -808,7 +814,7 @@ pkg_postrm() {
 pkg_postinst() {
 	if is_crosscompile; then
 			mkdir -p "${ROOT}etc/env.d"
-			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<-EOF
+			cat > "${ROOT}etc/env.d/05gcc-${CTARGET}" <<- EOF
 				PATH=${BINPATH}
 				ROOTPATH=${BINPATH}
 			EOF
