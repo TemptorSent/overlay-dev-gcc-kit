@@ -62,3 +62,7 @@ lrwxrwxrwx 1 root root 32 Aug 14 2017 gcc -> /var/git/<your_repo_name>/sys-devel
 
 
 Now you can run crossdev to create your toolchain
+Note that if you have previously installed a cross gcc version you may get
+file collision warnings at the end of install, not a cause for alarm.  These
+are config (such as /etc/env.d) files being replaced.  Portage should tell
+you they are going to be installed in spite of the collisions when it finishes.
