@@ -741,8 +741,8 @@ src_install() {
 			if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
 				string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
 			fi
-		echo $string>05cross-${CTARGET}
-		doins 05cross-${CTARGET}
+			echo $string>05cross-${CTARGET}
+			doins 05cross-${CTARGET}
 		)
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \; 2>/dev/null

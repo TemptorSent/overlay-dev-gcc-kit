@@ -719,6 +719,27 @@ src_install() {
 		( set +f
 			rm -rf "${D%/}${PREFIX}/share"/{man,info} 2>/dev/null
 			rm -rf "${D}${DATAPATH}"/{man,info} 2>/dev/null
+			# old xcompile bashrc stuff here
+			dosym /etc/localtime /usr/${CTARGET}/etc/localtime
+			for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
+				dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
+			done
+			mkdir -p /etc/revdep-rebuild
+			insinto "/etc/revdep-rebuild"
+			string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
+			for dir in /usr/lib/gcc/${CTARGET}/*; do
+				string+="$dir "
+			done
+			for dir in /usr/lib64/gcc/${CTARGET}/*; do
+				string+="$dir "
+			done
+			string=${string%?}
+			string+='"' 
+			if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
+				string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
+			fi
+			echo $string>05cross-${CTARGET}
+			doins 05cross-${CTARGET}			
 		)
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \; 2>/dev/null
@@ -773,28 +794,6 @@ src_install() {
 	[[ ! is_crosscompile ]] && \
 		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1" ; \
 		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1plus"
-	if is_crosscompile ; then
-		dosym /etc/localtime /usr/${CTARGET}/etc/localtime
-		for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
-			dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
-		done
-		mkdir -p /etc/revdep-rebuild
-		insinto "/etc/revdep-rebuild"
-		string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
-		for dir in /usr/lib/gcc/${CTARGET}/*; do
-			string+="$dir "
-		done
-		for dir in /usr/lib64/gcc/${CTARGET}/*; do
-			string+="$dir "
-		done
-		string=${string%?}
-		string+='"' 
-		if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
-			string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
-		fi
-		echo $string>05cross-${CTARGET}
-		doins 05cross-${CTARGET}
-	fi
 }
 
 pkg_postrm() {
