@@ -675,6 +675,33 @@ doc_cleanups() {
 	fi
 }
 
+cross_toolchain_env_setup() {
+			( set +f
+			rm -rf "${D%/}${PREFIX}/share"/{man,info}	
+			rm -rf "${D}${DATAPATH}"/{man,info} ) 2>/dev/null
+				# old xcompile bashrc stuff here
+				dosym /etc/localtime /usr/${CTARGET}/etc/localtime
+				for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
+					dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
+				done
+				mkdir -p /etc/revdep-rebuild
+				insinto "/etc/revdep-rebuild"
+				string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
+				for dir in /usr/lib/gcc/${CTARGET}/*; do
+					string+="$dir "
+				done
+				for dir in /usr/lib64/gcc/${CTARGET}/*; do
+					string+="$dir "
+				done
+				string="${string%?}"
+				string+='"' 
+				if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
+					string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
+				fi
+				printf "$string">05cross-${CTARGET}
+				doins 05cross-${CTARGET}
+}
+
 src_install() {
 	S=$WORKDIR/objdir; cd $S
 
@@ -720,31 +747,7 @@ src_install() {
 	linkify_compiler_binaries
 	tasteful_stripping
 	if is_crosscompile; then
-		( set +f
-			rm -rf "${D%/}${PREFIX}/share"/{man,info} 2>/dev/null
-			rm -rf "${D}${DATAPATH}"/{man,info} 2>/dev/null
-			# old xcompile bashrc stuff here
-			dosym /etc/localtime /usr/${CTARGET}/etc/localtime
-			for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
-				dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
-			done
-			mkdir -p /etc/revdep-rebuild
-			insinto "/etc/revdep-rebuild"
-			string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
-			for dir in /usr/lib/gcc/${CTARGET}/*; do
-				string+="$dir "
-			done
-			for dir in /usr/lib64/gcc/${CTARGET}/*; do
-				string+="$dir "
-			done
-			string=${string%?}
-			string+='"' 
-			if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
-				string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
-			fi
-			echo $string>05cross-${CTARGET}
-			doins 05cross-${CTARGET}			
-		)
+		cross_toolchain_env_setup
 	else
 		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \; 2>/dev/null
 		doc_cleanups
