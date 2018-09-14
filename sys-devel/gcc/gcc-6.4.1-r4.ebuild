@@ -660,14 +660,14 @@ doc_cleanups() {
 	fi
 
 	# Remove info files if we don't want them.
-	if ! use doc || has noinfo ${FEATURES} ; then
+	if is_crosscompile || ! use doc || has noinfo ${FEATURES} ; then
 		rm -r "${D}/${DATAPATH}"/info
 	else
 		prepinfo "${DATAPATH}"
 	fi
 
 	# Strip man files too if 'noman' feature is set.
-	if has noman ${FEATURES} ; then
+	if is_crosscompile || has noman ${FEATURES} ; then
 		rm -r "${D}/${DATAPATH}"/man
 	else
 		prepman "${DATAPATH}"
@@ -675,30 +675,28 @@ doc_cleanups() {
 }
 
 cross_toolchain_env_setup() {
-	( set +f
-	rm -rf "${D%/}${PREFIX}/share"/{man,info}	
-	rm -rf "${D}${DATAPATH}"/{man,info} ) 2>/dev/null
-		# old xcompile bashrc stuff here
-		dosym /etc/localtime /usr/${CTARGET}/etc/localtime
-		for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
-			dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
-		done
-		mkdir -p /etc/revdep-rebuild
-		insinto "/etc/revdep-rebuild"
-		string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
-		for dir in /usr/lib/gcc/${CTARGET}/*; do
-			string+="$dir "
-		done
-		for dir in /usr/lib64/gcc/${CTARGET}/*; do
-			string+="$dir "
-		done
-		string="${string%?}"
-		string+='"' 
-		if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
-			string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
-		fi
-		printf "$string">05cross-${CTARGET}
-		doins 05cross-${CTARGET}
+
+	# old xcompile bashrc stuff here
+	dosym /etc/localtime /usr/${CTARGET}/etc/localtime
+	for file in /usr/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}/libstdc*; do
+		dosym "$file" "/usr/${CTARGET}/lib/$(basename $file)"
+	done
+	mkdir -p /etc/revdep-rebuild
+	insinto "/etc/revdep-rebuild"
+	string="SEARCH_DIRS_MASK=\"/usr/${CTARGET} "
+	for dir in /usr/lib/gcc/${CTARGET}/*; do
+		string+="$dir "
+	done
+	for dir in /usr/lib64/gcc/${CTARGET}/*; do
+		string+="$dir "
+	done
+	string="${string%?}"
+	string+='"' 
+	if [[ -e /etc/revdep-rebuild/05cross-${CTARGET} ]] ; then
+		string+=" $(cat /etc/revdep-rebuild/05cross-${CTARGET}|sed -e 's/SEARCH_DIRS_MASK=//')"
+	fi
+	printf "$string">05cross-${CTARGET}
+	doins 05cross-${CTARGET}
 }
 				
 src_install() {
@@ -722,13 +720,20 @@ src_install() {
 	make -j1 DESTDIR="${D}" install || die
 
 # POST MAKE INSTALL SECTION:
-
-	# Basic sanity check
-	if ! is_crosscompile; then
+	if is_crosscompile; then
+		cross_toolchain_env_setup
+	else
+		# Basic sanity check
 		local EXEEXT
 		eval $(grep ^EXEEXT= "${WORKDIR}"/objdir/gcc/config.log)
 		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${D}"
+
+		# Install compat wrappers
+		exeinto "${DATAPATH}"
+		( set +f ; doexe "${FILESDIR}"/c{89,99} || die )	
 	fi
+	
+	# Setup env.d entry 
 	dodir /etc/env.d/gcc
 	create_gcc_env_entry
 
@@ -745,15 +750,13 @@ src_install() {
 
 	linkify_compiler_binaries
 	tasteful_stripping
-	if is_crosscompile; then
-		cross_toolchain_env_setup
-	else
-		find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \; 2>/dev/null
-		doc_cleanups
-		exeinto "${DATAPATH}"
-		( set +f ; doexe "${FILESDIR}"/c{89,99} || die )
-	fi
-
+	
+	# Remove python files in the lib path
+	find "${D}/${LIBPATH}" -name "*.py" -type f -exec rm "{}" \; 2>/dev/null
+	
+	# Remove unwanted docs and prepare the rest for installation
+	doc_cleanups
+	
 	# Cleanup undesired libtool archives
 	find "${D}" \
 		'(' \
