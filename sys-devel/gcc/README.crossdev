@@ -1,68 +1,85 @@
-To use crossdev to create cross toolchains you must have crossdev.  Due to growing differences
-in Gentoo's and Funtoo's directory structures I find that the latest version that can be used
-is crossdev-20151026-r1.  You can find it here:
-https://gitweb.gentoo.org/repo/gentoo.git/tree/sys-devel/crossdev/crossdev-20151026-r1.ebuild?id=8e8c1029dcdbc71acd8a50b5c43ed22ad6b92411.
-It will need the use-new-path-for-functions.sh.patch, you can find that here:
-https://chromium-review.googlesource.com/c/chromiumos/overlays/portage-stable/+/386946/2/sys-devel/crossdev/files/use-new-path-for-functions.sh.patch
-I haven't tried in a year or so though, perhaps some newer version magically works.
+It's now easy to build a cross toolchain in Funtoo.  The steps are:
+
+1.  emerge crossdev
+2.  setup package.env to pass your target device CFLAGS to gcc
+3.  setup crossdev CROSS-OVERLAY
+4.  build your cross toolchain
+
+1.  emerge crossdev
+To use crossdev to create cross toolchains you must have crossdev.  As of this writing
+the latest one in the Funtoo tree, crossdev-20180818 works fine.  
+
+2.  setup package.env to pass your target device CFLAGS to gcc
 
 The following steps must only be done once for each cross toolchain you wish to make.
 
 Set up package.env to pass the target's CFLAGS to gcc.  Just create a file in /etc/portage/env.
 I'll use the example of my armv7a here:
 
-touch /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
+# touch /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
 
 Then I copy my CFLAGS from my armv7a device's /etc/portage/make.conf:
 
-ssh odroid grep CFLAGS /etc/portage/make.conf
+# ssh odroid grep CFLAGS /etc/portage/make.conf
 
-Copy those flags and echo them to file:
+Copy those flags and echo them to a file in /etc/portage/env/<your choice of name>:
 
-echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' \
+# echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' \
 >> /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
 
-Now reference that file in /etc/portage/package.env.  Crossdev will demand that package.env be
-a directory, so if it's not already set up that way, now's the time to do it.  I have a
-/etc/portage/package.env/package.env file, crossdev will later place /etc/portage/package.env/<YOUR TUPLE> file(s) in there.
+Now reference that file in /etc/portage/package.env.  Crossdev will demand that 
+/etc/portage/package.env be a directory, so if it's not already set up that way, now's the
+time to do it.  Incidentally, crossdev also requires /etc/portage/package.mask and
+/etc/portage/package.use to be directories.  Now's the time if they aren't.  I have a
+/etc/portage/package.env/package.env file, crossdev will later place 
+/etc/portage/package.env/<YOUR TUPLE> file(s) in there.
 Leave those alone, as crossdev itself creates, updates, etc. those file(s).
 
-echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc.conf" \
+# echo "cross-armv7a-hardfloat-linux-gnueabi/gcc  cross-armv7a-hardfloat-linux-gnueabi-gcc.conf" \
 >> /etc/portage/package.env/package.env
 
-***Below is only necessary until the new gcc ebuilds are in the tree***
-Set up your local repository:
+3.  setup crossdev CROSS-OVERLAY
 
-The 1st step is to install the gcc ebuild of interest in your local portage tree, there are many
-guides detailing the steps to create a local portage tree.
+Crossdev uses the`portageq repositories_configuration` command to search for toolchain packages,
+so it will find meta-repo and any other repos you have noted in /etc/portage/repos.conf.
+However it will choose to put it's links to them in meta-repo/nokit.  This is probably not the
+best place for this, so it's desirable to use your local repo instead by using -oO or
+--ov-output <your local repo path> instead.  That way it won't interfere in any way or
+get nuked if you rebuild meta-repo.
+Initialize your CROSS-OVERLAY thusly:
+# crossdev -t <your tuple> --init-target -oO <path to local repo>
+In my case:
+# crossdev -t armv7a-hardfloat-linux-gnueabi --init-target -oO /var/git/borg-repo
 
-Next run crossdev --init-target -t YOUR_TUPLE it will create the config files and overlay in your local portage tree.
+Currently the only gcc ebuilds capable of building a cross gcc are 6.4.1-r4, 7.3.1-r4 and
+8.2.1-r4.  As these ebuild propagate to the tree and future ebuilds will have the capability
+to build cross gcc the following information will no longer be necessary.
+After you have initialized your CROSS-OVERLAY in <path to local repo>/cross-<tuple> you will find
+links similar to this:
+# ls -l <path to local repo>/cross-<tuple>
+(or in my case: # ls -l /var/git/borg-repo/cross-armv7a-hardfloat-linux-gnueabi)
 
-Then go to the overlay directory crossdev created, you will find something like this:
+lrwxrwxrwx 1 root root 51 Sep 14 17:31 binutils -> /var/git/meta-repo/kits/core-kit/sys-devel/binutils
+lrwxrwxrwx 1 root root 34 Sep 14 19:04 gcc -> /var/git/meta-repo/kits/core-kit/sys-devel/gcc
+lrwxrwxrwx 1 root root 43 Sep 14 17:31 gdb -> /var/git/meta-repo/kits/nokit/sys-devel/gdb
+lrwxrwxrwx 1 root root 47 Sep 14 17:31 glibc -> /var/git/meta-repo/kits/core-kit/sys-libs/glibc
+lrwxrwxrwx 1 root root 57 Sep 14 17:31 linux-headers -> /var/git/meta-repo/kits/core-kit/sys-kernel/linux-headers
 
-`# ls -l
+You must delete the gcc link and replace it with a link to your local repo gcc builds:
 
-total 0
+# cd <path to local repo>/cross-<tuple>
+# rm gcc
+# ln -s <path to local repo>/sys-devel/gcc gcc
 
-lrwxrwxrwx 1 root root 51 Aug 14 2017 binutils -> /var/git/meta-repo/kits/core-kit/sys-devel/binutils
+Otherwise crossdev will insist on using Funtoo tree ebuilds, even bumping the version to match them
+if necessary.
 
-lrwxrwxrwx 1 root root 32 Aug 14 2017 gcc -> /var/git/meta-repo/kits/core-kit/sys-devel/gcc
+4.  build your cross toolchain
+Now you can run crossdev to create your toolchain.  Be sure to use -oS or --overlays to
+point crossdev to the CROSS-OVERLAY.  Here's an example I ran successfully today:
 
-lrwxrwxrwx 1 root root 43 Aug 14 2017 gdb -> /var/git/meta-repo/kits/nokit/sys-devel/gdb
+# crossdev --b 2.29.1-r1 --g 6.4.1-r4 --k 4.9 --l 2.23-r4 -P -v -t armv7a-hardfloat-linux-gnueabi -oS /var/git/borg-repo
 
-lrwxrwxrwx 1 root root 47 Aug 14 2017 glibc -> /var/git/meta-repo/kits/core-kit/sys-libs/glibc
-
-lrwxrwxrwx 1 root root 57 Aug 14 2017 linux-headers -> /var/git/meta-repo/kits/core-kit/sys-kernel/linux-headers`
-
-Simply remove the gcc link and replace it like this:
-
-ln -s /var/git/<your_repo_name>/sys-devel/gcc gcc
-
-lrwxrwxrwx 1 root root 32 Aug 14 2017 gcc -> /var/git/<your_repo_name>/sys-devel/gcc
-
-
-Now you can run crossdev to create your toolchain
-Note that if you have previously installed a cross gcc version you may get
-file collision warnings at the end of install, not a cause for alarm.  These
-are config (such as /etc/env.d) files being replaced.  Portage should tell
-you they are going to be installed in spite of the collisions when it finishes.
+Note that on cross gcc ebuilds you will get file collision warnings at the end of install,
+not a cause for alarm.  These are config (such as /etc/env.d) files that are being replaced.
+Portage should tell you they are going to be installed in spite of the collisions when it finishes.
