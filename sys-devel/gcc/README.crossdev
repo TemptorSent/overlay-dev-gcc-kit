@@ -22,7 +22,7 @@ Then I copy my CFLAGS from my armv7a device's /etc/portage/make.conf:
 
 # ssh odroid grep CFLAGS /etc/portage/make.conf
 
-Copy those flags and echo them to a file in /etc/portage/env/<your choice of name>:
+Copy those flags and echo them to the file in /etc/portage/env/<your choice of name>:
 
 # echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' \
 >> /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
