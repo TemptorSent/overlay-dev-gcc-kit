@@ -13,16 +13,14 @@ the latest one in the Funtoo tree, crossdev-20180818 works fine.
 
 The following steps must only be done once for each cross toolchain you wish to make.
 
-Set up package.env to pass the target's CFLAGS to gcc.  Just create a file in /etc/portage/env.
-I'll use the example of my armv7a here:
+Set up package.env to pass the target's CFLAGS to gcc.  I'll use my armv7a
+odroid as an example.
 
-# touch /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
-
-Then I copy my CFLAGS from my armv7a device's /etc/portage/make.conf:
+First, I copy my CFLAGS from my armv7a device's /etc/portage/make.conf:
 
 # ssh odroid grep CFLAGS /etc/portage/make.conf
 
-Copy those flags and echo them to the file in /etc/portage/env/<your choice of name>:
+Copy those flags and echo them to a file in /etc/portage/env/<your choice of name>:
 
 # echo 'CFLAGS="-Ofast -march=armv7-a -mtune=cortex-a5 -mfpu=neon-vfpv4 -mfloat-abi=hard"' \
 >> /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-gcc.conf
@@ -80,3 +78,6 @@ point crossdev to the CROSS-OVERLAY.  Here's an example I ran successfully today
 
 # crossdev --b 2.29.1-r1 --g 6.4.1-r4 --k 4.9 --l 2.23-r4 -P -v -t armv7a-hardfloat-linux-gnueabi -oS /var/git/borg-repo
 
+Note that on cross gcc ebuilds you will get file collision warnings at the end of install,
+not a cause for alarm.  These are config (such as /etc/env.d) files that are being replaced.
+Portage should tell you they are going to be installed in spite of the collisions when it finishes.
