@@ -81,3 +81,14 @@ point crossdev to the CROSS-OVERLAY.  Here's an example I ran successfully today
 Note that on cross gcc ebuilds you will get file collision warnings at the end of install,
 not a cause for alarm.  These are config (such as /etc/env.d) files that are being replaced.
 Portage should tell you they are going to be installed in spite of the collisions when it finishes.
+
+Addendum:
+On 9-17-18 I executed the following command:
+crossdev --b 2.29.1-r1 --g 6.4.1-r4 --k 4.14 --l 2.26-r6 -P -v -t armv7a-hardfloat-linux-gnueabi -oS /var/git/borg-repo
+Glibc failed, complaining that I needed to use the -fPIC directive.  Since glibc does not have a fPIC use flag I
+created another /etc/package.env file:
+# cat /etc/portage/env/cross-armv7a-hardfloat-linux-gnueabi-glibc.conf
+CFLAGS="${CFLAGS} -fPIC"
+And added this to /etc/portage/package.env/package.env:
+cross-armv7*/glibc			cross-armv7a-hardfloat-linux-gnueabi-glibc.conf
+And the toolchain emerged successfully.
