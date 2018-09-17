@@ -511,6 +511,7 @@ src_configure() {
 	use graphite && confgcc+=" --disable-isl-version-check"
 
 	use vtv && confgcc+=" --enable-vtable-verify --enable-libvtv"
+    ! use vtv && confgcc+=" --disable-vtable-verify --disable-libvtv"
 
 	use libssp || export gcc_cv_libc_provides_ssp=yes
 
