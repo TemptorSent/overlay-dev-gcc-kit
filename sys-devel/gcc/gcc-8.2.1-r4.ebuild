@@ -143,6 +143,7 @@ pkg_setup() {
 	MTUNE="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mtune="?([-_[:alnum:]]+).*/\1/p')"
 	MFPU="$(printf -- "${CFLAGS}" | sed -rne 's/.*-mfpu="?([-_[:alnum:]]+).*/\1/p')"
 	einfo "Got CFLAGS: ${CFLAGS}"
+	einfo "Got GCC_BUILD_CFLAGS: ${GCC_BUILD_CFLAGS}"
 	einfo "MARCH: ${MARCH}"
 	einfo "MCPU ${MCPU}"
 	einfo "MTUNE: ${MTUNE}"
@@ -163,13 +164,15 @@ pkg_setup() {
 	DATAPATH=${PREFIX}/share/gcc-data/${CTARGET}/${GCC_CONFIG_VER}
 	if is_crosscompile; then
 		BINPATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}
-		CFLAGS="-O2 -pipe"
-		FFLAGS="$CFLAGS"
-		FCFLAGS="$CFLAGS"
-		CXXFLAGS="$CFLAGS"
 	else
 		BINPATH=${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}
 	fi
+
+	export CFLAGS="${GCC_BUILD_CFLAGS:--O2 -pipe}"
+	export FFLAGS="$CFLAGS"
+	export FCFLAGS="$CFLAGS"
+	export CXXFLAGS="$CFLAGS"
+
 	LIBPATH=${PREFIX}/lib/gcc/${CTARGET}/${GCC_CONFIG_VER}
 	STDCXX_INCDIR=${LIBPATH}/include/g++-v${GCC_BRANCH_VER}
 
