@@ -574,15 +574,16 @@ src_compile() {
 }
 
 src_test() {
-	cd $WORKDIR/objdir
+	cd "${WORKDIR}/objdir"
 	unset ABI
-
+	local tests_failed=0
 	if is_crosscompile || tc-is-cross-compiler; then
 		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
 	else
-		ulimit -s 65536 && emake LIBPATH="${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log || die "make -k check failed"
+		ulimit -s 65536 && emake LIBPATH="${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log || tests_failed=1
+		"../${S##*/}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
+		[ ${tests_failed} -eq 0 ] || die "make -k check failed"
 	fi
-
 }
 
 create_gcc_env_entry() {

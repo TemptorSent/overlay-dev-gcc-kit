@@ -37,8 +37,8 @@ done
 SLOT="${PV}"
 
 # Version of archive before patches.
-GCC_ARCHIVE_VER="6.4.0"
-GCC_SVN_REV="263864"
+GCC_ARCHIVE_VER="7.3.0"
+GCC_SVN_REV="263865"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
@@ -51,31 +51,31 @@ GCC_SVN_PATCH="${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_R
 # Gentoo patcheset
 GENTOO_PATCHES_VER="1.6"
 GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
-#GENTOO_GCC_PATCHES_VER="6.4.0"
+#GENTOO_GCC_PATCHES_VER="7.3.0"
 GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
 GENTOO_PATCHES=(
 	10_all_default-fortify-source.patch
+	# These are configurable options for us
 	#11_all_default-warn-format-security.patch
 	#12_all_default-warn-trampolines.patch
 	13_all_default-ssp-fix.patch
 	25_all_alpha-mieee-default.patch
-	29_all_arm_armv4t-default.patch
 	34_all_ia64_note.GNU-stack.patch
-	42_all_superh_default-multilib.patch
 	50_all_libiberty-asprintf.patch
 	51_all_libiberty-pic.patch
 	54_all_nopie-all-flags.patch
+	# We'll handle this ourselves.
 	#55_all_extra-options.patch
 	90_all_pr55930-dependency-tracking.patch
-	92_all_asan-signal_h.patch
-	#93_all_ucontext-to-ucontext_t.patch
-	#94_all_no-sigaltstack.patch
-	#95_all_static_override_pie.patch
-	#96_all_powerpc_pie.patch
-	#97_all_libjava-ucontext.patch
-	#98_all_libsanitizer-avoidustat.h-glibc-2.28-part-1.patch
-	#99_all_libsanitizer-avoidustat.h-glibc-2.28-part-2.patch
-	#100_all_isl-include.patch
+	# Already included in svn patches
+	#91_all_bmi-i386-PR-target-81763.patch
+	92_all_sh-drop-sysroot-suffix.patch
+	# Already included in svn patches
+	#93_all_copy-constructible-fix.patch
+	#94_all_libgo-remove-ustat.h-glibc-2.28.patch
+	#95_all_libsanitizer-avoidustat.h-glibc-2.28-part-1.patch
+	#96_all_libsanitizer-avoidustat.h-glibc-2.28-part-2.patch
+	#97_all_isl-include.patch
 )
 
 # Math libraries:
@@ -244,6 +244,11 @@ src_prepare() {
 
 	sed -i -e "s/^version :=.*/version := ${GCC_CONFIG_VER}/" ${S}/libgcc/Makefile.in || die
 
+	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
+	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
+		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
+		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
+
 	if ! use vanilla; then
 
 		# Prevent libffi from being installed
@@ -353,10 +358,6 @@ _gcc_prepare_cross() {
 	esac
 	export TARGET_LIBC
 
-	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
-	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
-		-e 's%plugindir = .*%plugindir = '"${ROOT}${PREFIX}"'/lib/gcc/$(target_noncanonical)/$(gcc_version)/plugin%' \
-		-i "${WORKDIR}/${P}/libcc1"/Makefile.{am,in}
 	if [[ ${CTARGET} == avr* ]]; then
 		sed -e 's%native_system_header_dir=/usr/include%native_system_header_dir=/include%' -i "${WORKDIR}/${P}/gcc/config.gcc"
 	fi
@@ -577,16 +578,15 @@ src_compile() {
 }
 
 src_test() {
-	cd "${WORKDIR}/objdir"
+	cd $WORKDIR/objdir
 	unset ABI
-	local tests_failed=0
+
 	if is_crosscompile || tc-is-cross-compiler; then
 		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
 	else
-		ulimit -s 65536 && emake LIBPATH="${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log || tests_failed=1
-		"../${S##*/}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
-		[ ${tests_failed} -eq 0 ] || die "make -k check failed"
+		ulimit -s 65536 && emake LIBPATH="${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log || die "make -k check failed"
 	fi
+
 }
 
 create_gcc_env_entry() {
