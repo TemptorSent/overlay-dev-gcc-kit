@@ -80,12 +80,14 @@ or --overlays to point crossdev to the CROSS-OVERLAY.  Here's an example I ran s
 # crossdev --b 2.29.1-r1 --g 6.4.1-r4 --k 4.9 --l 2.23-r4 -P -v -t armv7a-hardfloat-linux-gnueabi -oS /var/git/borg-repo
 
 This handy script run on the machine you are making the cross toolchain(s) for takes the work out of figuring it out:
+--------------------
 #!/bin/bash
 BINUTILS_VER=$(equery l sys-devel/binutils|cut -d- -f3-)
 GCC_VER=$(gcc --version|grep -A1 Funtoo|cut -d ' ' -f3|cut -d ')' -f1|head -n1)
 KERNEL_VER=$(equery l sys-kernel/linux-headers|cut -d- -f4-)
 LIBC_VER=$(equery l sys-libs/glibc|cut -d- -f3-)
 echo "crossdev --b $BINUTILS_VER --g $GCC_VER --k $KERNEL_VER --l $LIBC_VER -P -v -t $(portageq envvar CHOST) -oS <your local repo> "
+--------------------
 
 Note that on cross gcc ebuilds you will get file collision warnings at the end of install,
 not a cause for alarm.  These are config (such as /etc/env.d) files that are being replaced.
