@@ -82,6 +82,8 @@ or --overlays to point crossdev to the CROSS-OVERLAY.  Here's an example I ran s
 Note that on cross gcc ebuilds you will get file collision warnings at the end of install,
 not a cause for alarm.  These are config (such as /etc/env.d) files that are being replaced.
 Portage should tell you they are going to be installed in spite of the collisions when it finishes.
+Don't forget to run source /etc/profile and gcc-config when it's done, as it's not automatically
+enabled.
 
 Addendum:
 On 9-17-18 I executed the following command:
