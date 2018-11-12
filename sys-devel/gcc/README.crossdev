@@ -45,9 +45,9 @@ best place for this, so it's desirable to use your local repo instead by using -
 --ov-output <your local repo path> instead.  That way it won't interfere in any way or
 get nuked if you rebuild meta-repo.
 Initialize your CROSS-OVERLAY thusly:
-# crossdev -t <your tuple> --init-target -oO <path to local repo>
+# crossdev -t <your tuple> --init-target -oS <path to local repo>
 In my case:
-# crossdev -t armv7a-hardfloat-linux-gnueabi --init-target -oO /var/git/borg-repo
+# crossdev -t armv7a-hardfloat-linux-gnueabi --init-target -oS /var/git/borg-repo
 
 Currently the only gcc ebuilds capable of building a cross gcc are 6.4.1-r4, 7.3.1-r4 and
 8.2.1-r4.  As these ebuild propagate to the tree and future ebuilds will have the capability
