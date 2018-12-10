@@ -34,23 +34,25 @@ for _check in no release yes all ${CHECKS_ALL} ${CHECKS_VALGRIND}; do
 done
 
 
+
 SLOT="${PV}"
 
 # Version of archive before patches.
-GCC_ARCHIVE_VER="7.4.0"
+GCC_ARCHIVE_VER="6.5.0"
+GCC_SVN_REV=""
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
-SRC_URI="mirror://gnu/gcc/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
+SRC_URI="mirror://gnu/gcc/${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_REV="266882"
-GCC_SVN_PATCH="${GCC_SVN_REV:+${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch}"
+GCC_SVN_PATCH=""
+#GCC_SVN_PATCH="${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
 
 # Gentoo patcheset
-GENTOO_PATCHES_VER="1.1"
+GENTOO_PATCHES_VER="1.0"
 GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
-GENTOO_GCC_PATCHES_VER="7.4.0"
+#GENTOO_GCC_PATCHES_VER="6.4.0"
 GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
 GENTOO_PATCHES=(
 	#01_all_default-fortify-source.patch
@@ -58,21 +60,23 @@ GENTOO_PATCHES=(
 	#03_all_default-warn-trampolines.patch
 	04_all_default-ssp-fix.patch
 	05_all_alpha-mieee-default.patch
-	06_all_ia64_note.GNU-stack.patch
-	07_all_libiberty-asprintf.patch
-	08_all_libiberty-pic.patch
-	09_all_nopie-all-flags.patch
-	#10_all_extra-options.patch
-	11_all_pr55930-dependency-tracking.patch
-	12_all_sh-drop-sysroot-suffix.patch
-	13_all_respect-build-cxxflags.patch
-	14_all_libgfortran-Werror.patch
-	15_all_libgomp-Werror.patch
-	16_all_libitm-Werror.patch
-	17_all_libatomic-Werror.patch
-	18_all_libbacktrace-Werror.patch
-	19_all_libsanitizer-libbacktrace-Werror.patch
-	20_all_libstdcxx-no-vtv.patch
+	06_all_arm_armv4t-default.patch
+	07_all_ia64_note.GNU-stack.patch
+	08_all_superh_default-multilib.patch
+	09_all_libiberty-asprintf.patch
+	10_all_libiberty-pic.patch
+	11_all_nopie-all-flags.patch
+	#12_all_extra-options.patch
+	13_all_pr55930-dependency-tracking.patch
+	14_all_asan-signal_h.patch
+	15_all_respect-build-cxxflags.patch
+	16_all_libgfortran-Werror.patch
+	17_all_libgomp-Werror.patch
+	18_all_libitm-Werror.patch
+	19_all_libatomic-Werror.patch
+	20_all_libbacktrace-Werror.patch
+	21_all_libsanitizer-libbacktrace-Werror.patch
+	22_all_libstdcxx-no-vtv.patch
 )
 
 # Math libraries:

@@ -14,7 +14,8 @@ GCC_MAJOR="${PV%%.*}"
 IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
-IUSE="$IUSE openmp altivec graphite +pch lto-bootstrap generic_host" # Optimizations/features flags
+IUSE="$IUSE openmp altivec graphite +pch bootstrap-profiled generic_host" # Optimizations/features flags
+# bootstrap-lto is not currently working, disabled
 IUSE="$IUSE libssp +ssp" # Base hardening flags
 IUSE="$IUSE +pie +vtv link_now ssp_all" # Extra hardening flags
 [ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE stack_clash_protection" # Stack clash protector added in gcc-8
@@ -31,7 +32,6 @@ CHECKS_ALL="${CHECKS_YES} df fold gcac rtl ${CHECKS_EXTRA}"
 for _check in no release yes all ${CHECKS_ALL} ${CHECKS_VALGRIND}; do
 	IUSE="${IUSE} checking_${_check} stage1_checking_${_check}"
 done
-
 
 
 SLOT="${PV}"
@@ -284,7 +284,7 @@ src_prepare() {
 			done
 		fi
 
-		use lto-bootstrap && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
+		#use bootstrap-lto && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
 
 		# Harden things up:
 		_gcc_prepare_harden
@@ -599,7 +599,7 @@ src_compile() {
 	if is_crosscompile || tc-is-cross-compiler; then
 		emake P= LIBPATH="${LIBPATH}" all || die "compile fail"
 	else
-		emake P= LIBPATH="${LIBPATH}" all || die "compile fail"
+		emake P= LIBPATH="${LIBPATH}" $(usex bootstrap-profiled profiledbootstrap all) || die "compile fail"
 		#emake LIBPATH="${LIBPATH}" bootstrap-lean || die "compile fail"
 	fi
 }
