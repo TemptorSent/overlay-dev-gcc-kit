@@ -45,7 +45,15 @@ SRC_URI="mirror://gnu/gcc/${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
 GCC_SVN_REV="266883"
-GCC_SVN_PATCH="${GCC_SVN_REV:+${FILESDIR}/svn-patches/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch}"
+GCC_SVN_PATCH_NAME="gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
+GCC_SVN_PATCH_URI="https://fastpull-us.funtoo.org/distfiles/${GCC_SVN_PATCH_NAME}"
+if [ -z "${GCC_SVN_PATCH_URI}" ]; then
+	GCC_SVN_PATCH_PATH="${FILESDIR}/svn-patches"
+else
+	SRC_URI="${SRC_URI} ${GCC_SVN_PATCH_NAME}"
+	GCC_SVN_PATCH_PATH="${DISTDIR}"
+fi
+GCC_SVN_PATCH="${GCC_SVN_REV:+${GCC_SVN_PATCH_PATH}/gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch}"
 
 # Gentoo patcheset
 GENTOO_PATCHES_VER="1.6"
