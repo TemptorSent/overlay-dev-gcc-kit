@@ -282,6 +282,14 @@ toolchain_gcc_src_prepare() {
 
 	toolchain_gcc_is_crosscompiler && _gcc_prepare_cross
 
+	if use multiarch ; then
+		_run_function_if_exists toolchain_gcc_prepare_multiarch
+	elif use multilib ; then
+		_run_function_if_exists toolchain_gcc_prepare_multilib
+	else
+		_run_function_if_exists toolchain_gcc_prepare_nomultilib
+	fi
+
 	# Ada gnat compiler bootstrap preparation
 	use ada && _gcc_prepare_gnat
 
@@ -352,7 +360,7 @@ toolchain_gcc_prepare_harden_6_7() {
 	# Selectively enable features from hardening patches
 	use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
 	use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-	use strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
+	use sane_strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
 }
 
 toolchain_gcc_prepare_harden_6() {
@@ -379,11 +387,19 @@ toolchain_gcc_prepare_harden_8() {
 	use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
 }
 
+toolchain_gcc_prepare_multilib() {
+	# Force multilib directories to be ../lib{32,64,x32} rather than autodetecting
+	sed -e 's/\(MULTILIB_OSDIRNAMES[+ ]\?= m\)\([x]\?[63][42]\)=.*/\1\2=..\/lib\2/' -i gcc/config/i386/t-linux64
+}
+
 toolchain_gcc_conf_append() {
 	declare -a TOOLCHAIN_GCC_CONF
 	TOOLCHAIN_GCC_CONF+=( "$@" )
 	declare -a -x TOOLCHAIN_GCC_CONF
 }
+
+
+# These probably belong in full-toolchain-specific eclasses that are included based on which complete toolchain is being built
 
 toolchain_gcc_conf_for_newlib() {
 	local myconf=(
@@ -398,3 +414,160 @@ toolchain_gcc_conf_for_glibc() {
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
+
+
+toolchain_gcc_conf_harden() {
+	local myvtvenable="disable"
+	use vtv && myvtvenable="enable"
+
+	local myconf=(
+		$(use_enable pie default-pie)
+		$(use_enable ssp default-ssp)
+		$(use_enable libssp)
+		--${myvtvenable}-vtable-verify
+		--${myvtvenable}-libvtv
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+
+	# If we don't have libssp flag enabled, assume the libc provides ssp libs.
+	use libssp || export gcc_cv_libc_provides_ssp=yes
+
+}
+
+
+toolchain_gcc_conf_crossbuild() {
+	local myconf=(
+		--build=${CBUILD}
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+
+toolchain_gcc_conf_crosscompiler() {
+	local myconf=(
+		--target=${CTARGET}
+		--enable-poison-system-directories
+		--disable-libgomp
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_native() {
+	local myconf=(
+		--enable-threads=posix
+		--enable-__cxa_atexit
+		--enable-libstdcxx-time
+		$(use_enable openmp libgomp)
+		--enable-bootstrap
+		--enable-shared
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_multiarch() {
+	local myconf=(
+		--enable-multiarch
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_multilib() {
+	local myconf=(
+		--disable-multiarch
+		--enable-multilib
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_nomultilib() {
+	local myconf=(
+		--disable-multiarch
+		--disable-multilib
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+
+
+
+toolchain_gcc_src_configure() {
+
+	toolchain_gcc_is_crossbuild && toolchain_gcc_conf_crossbuild
+
+	if toolchain_gcc_is_crosscompiler ; then
+		toolchain_gcc_conf_crosscompiler
+	else
+		toolchain_gcc_conf_native
+	fi
+
+	if use multiarch ; then
+		toolchain_gcc_conf_multiarch
+	elif use multilib ; then
+		toolchain_gcc_conf_multilib
+	else
+		toolchain_gcc_conf_nomultilib
+	fi
+
+
+	local branding="Funtoo"
+	if use hardened; then
+		branding="$branding Hardened ${PVR}"
+	else
+		branding="$branding ${PVR}"
+	fi
+
+
+	local myconf=(
+		$(use_enable sanitize libsanitizer)
+		$(usex pch "" "--disable-libstdcxx-pch")
+		$(usex graphite "--disable-isl-version-check")
+		--with-python-dir=${DATAPATH/$PREFIX/}/python
+		--prefix=${PREFIX}
+		--bindir=${BINPATH}
+		--includedir=${LIBPATH}/include
+		--datadir=${DATAPATH}
+		--mandir=${DATAPATH}/man
+		--infodir=${DATAPATH}/info
+		--with-gxx-include-dir=${STDCXX_INCDIR}
+		--enable-clocale=gnu
+		--host=$CHOST
+		--enable-obsolete
+		--disable-werror
+		--enable-libmudflap
+		--enable-secureplt
+		--enable-lto
+		--with-system-zlib
+		$(use_with graphite cloog)
+		--with-bugurl="http://bugs.funtoo.org"
+		--with-pkgversion="$branding"
+		$(gcc_checking_opts stage1) $(gcc_checking_opts)
+		$(gcc_conf_lang_opts) $(gcc_conf_arm_opts) $confgcc
+	)
+
+	use generic_host || myconf+=(
+		${MARCH:+--with-arch=${MARCH}}
+		${MCPU:+--with-cpu=${MCPU}}
+		${MTUNE:+--with-tune=${MTUNE}}
+		${MFPU:+--with-fpu=${MFPU}}
+	)
+
+	if use nls ; then
+		myconf+=(
+			--enable-nls
+			--with-included-gettext
+		)
+	else
+		myconf+=(
+			--disable-nls
+		)
+	fi
+
+	toolchain_gcc_conf_append "${myconf[@]}"
+
+	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure "${TOOLCHAIN_GCC_CONF[@]}"
+		|| die "configure fail"
+
+	toolchain_gcc_is_crosscompiler && gcc_conf_cross_post
+}
+
+

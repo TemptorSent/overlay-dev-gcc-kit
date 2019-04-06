@@ -18,7 +18,7 @@ IUSE="$IUSE openmp altivec graphite pch bootstrap-profiled generic_host" # Optim
 # bootstrap-lto is not currently working, disabled
 IUSE="$IUSE libssp +ssp" # Base hardening flags
 IUSE="$IUSE +pie +vtv link_now ssp_all" # Extra hardening flags
-[ ${GCCMAJOR} -ge 8 ] && IUSE="$IUSE +stack_clash_protection" # Stack clash protector added in gcc-8
+[ ${GCCMAJOR} -ge 8 ] && IUSE="$IUSE +stack_clash_protection" || IUSE="${IUSE} +sane_strict_overflow" # Stack clash protector added in gcc-8, strict overflow fixup dropped
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
 
@@ -446,6 +446,10 @@ gcc_conf_cross_options() {
 }
 
 src_configure() {
+	toolchain_gcc_src_configure
+}
+
+xsrc_configure() {
 
 	local confgcc
 	if toolchain_gcc_is_crosscompiler || tc-is-cross-compiler; then
