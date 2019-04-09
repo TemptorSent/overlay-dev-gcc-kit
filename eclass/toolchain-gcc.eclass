@@ -567,29 +567,21 @@ toolchain_gcc_conf_harden() {
 toolchain_gcc_conf_crossbuild() {
 	local myconf=(
 		--build=${CBUILD}
+		--host=${CHOST}
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
 
-
-toolchain_gcc_conf_crosscompiler() {
-	local myconf=(
-		--target=${CTARGET}
-		--enable-poison-system-directories
-		--disable-libgomp
-	)
-
-	# If we have at least headers for libc installed, set sysroot path
-	_toolchain_has_libc_headers && myconf+=( --with-sysroot=${PREFIX}/${CTARGET} )
-
-	toolchain_gcc_conf_append "${myconf[@]}"
-}
 
 
 # This is currently setup for crossdev tool, needs to be changed later to support non crossdev crosscompiler use.
 _toolchain_libc_status() {
 	local my_target_libc="${1:-${TARGET_LIBC}}"
 	local my_libc_cat="sys-libs"
+
+	# Allow forcefully overriding libc status using env variable TOOLCHAIN_FORCE_LIBC_STATUS
+	if [ -n "${TOOLCHAIN_FORCE_LIBC_STATUS}" ] ; then printf -- '%s' "${TOOLCHAIN_FORCE_LIBC_STATUS}" ; return ; fi
+
 	toolchain_gcc_is_crosscompiler && my_libc_cat="${CATEGORY}"
 
 	local my_cp="${my_libc_cat}/${my_target_libc}"
@@ -645,16 +637,45 @@ toolchain_gcc_conf_libc_headers_only() {
 
 
 toolchain_gcc_conf_native() {
-	local myconf=(
-		--enable-threads=posix
-		--enable-__cxa_atexit
-		--enable-libstdcxx-time
-		$(use_enable openmp libgomp)
-		--enable-bootstrap
-		--enable-shared
-	)
+	local myconf=()
+	if _toolchain_has_libc_none ; then
+		toolchain_gcc_conf_nolibc
+	elif _toolchain_has_libc_headers_only ; then
+		toolchain_gcc_conf_libc_headers_only
+	else
+		myconf=(
+			--enable-threads=posix
+			--enable-__cxa_atexit
+			--enable-libstdcxx-time
+			$(use_enable openmp libgomp)
+			--enable-bootstrap
+			--enable-shared
+		)
+	fi
+
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
+
+toolchain_gcc_conf_crosscompiler() {
+	local myconf=()
+	if _toolchain_has_libc_none ; then
+		toolchain_gcc_conf_nolibc
+	elif _toolchain_has_libc_headers_only ; then
+		toolchain_gcc_conf_libc_headers_only
+	else
+		myconf=(
+			--host=${CHOST}
+			--target=${CTARGET}
+			--enable-poison-system-directories
+		)
+	fi
+
+	# If we have at least headers for libc installed, set sysroot path
+	_toolchain_has_libc_headers && myconf+=( --with-sysroot=${PREFIX}/${CTARGET} )
+
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
 
 
 # 32 bit ARM
@@ -711,25 +732,36 @@ toolchain_gcc_conf_arch_avr() {
 }
 
 # PPC & RS/6000
-toolchain_gcc_conf_arch_powerpc() {
+toolchain_gcc_conf_arch_rs6000() {
 	local myconf=(
 		--enable-secureplt
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
 
-toolchain_gcc_conf_arch() {
-	local mygccarch
-	for mygccarch in aarch64 alpha arc arm avr bfin c6x cr16 cris epiphany fr30 frv ft32 h8300 \
-		i386 ia64 iq2000 lm32 m32c m32r m68k mcore microblaze mips mmix mn10300 moxie msp430 \
-		nds32 nios2 nvptx pa pdp11 powerpcspe riscv rl78 rs6000 rx s390 sh sparc spu stormy16 \
-		tilegx tilepro v850 vax visium vms xtensa
-	do
-		case "${CTARGET}" in
-			x86_64|i[34567]86*) _run_function_if_exists toolchain_gcc_conf_arch_x86 ;;
-			${mygccarch}*) _run_function_if_exists toolchain_gcc_conf_arch_${mygccarch} ;;
+# Check target configuration options / extract values from gcc/config.gcc script
+# Passes input vars of form: <var>=<value>
+# Prints listed output vars of form <var> (no =*)
+toolchain_gcc_config_gcc() {
+	local my_in_vars=()
+	local my_out_vars=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			*=*) my_in_vars+=( "${1}" ) ;;
+			*) my_out_vars+=( "${1}" ) ;;
 		esac
+		shift
 	done
+	( eval "${my_in_vars[@]}" ; . gcc/config.gcc || exit 1 ; for v in "${my_out_vars[@]}" ; do eval "printf -- '%s' \${${v}}" ; done )
+}
+
+
+toolchain_gcc_conf_arch() {
+	local my_gcc_cpu_type="$(toolchain_gcc_config_gcc target="${CTARGET}" cpu_type)"
+
+	[ -n "${my_gcc_cpu_type}" ] || die "Can not determine gcc's cpu_type for target '${CTARGET}'!"
+	_run_function_if_exists toolchain_gcc_conf_arch_${my_gcc_cpu_type} ;;
+
 }
 
 toolchain_gcc_conf_multiarch() {
