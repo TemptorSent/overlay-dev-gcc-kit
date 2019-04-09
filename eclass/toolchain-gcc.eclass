@@ -760,7 +760,7 @@ toolchain_gcc_conf_arch() {
 	local my_gcc_cpu_type="$(toolchain_gcc_config_gcc target="${CTARGET}" cpu_type)"
 
 	[ -n "${my_gcc_cpu_type}" ] || die "Can not determine gcc's cpu_type for target '${CTARGET}'!"
-	_run_function_if_exists toolchain_gcc_conf_arch_${my_gcc_cpu_type} ;;
+	_run_function_if_exists toolchain_gcc_conf_arch_${my_gcc_cpu_type}
 
 }
 
