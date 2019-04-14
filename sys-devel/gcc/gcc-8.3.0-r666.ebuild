@@ -16,11 +16,11 @@ IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened multilib multiarch" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite pch bootstrap-profiled generic_host" # Optimizations/features flags
 # bootstrap-lto is not currently working, disabled
-IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie +vtv link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE libssp +ssp +pie" # Base hardening flags
+IUSE="$IUSE +default_fortify +link_now +ssp_all vtv" # Extra hardening flags
 [ ${GCCMAJOR} -ge 8 ] && IUSE="$IUSE +stack_clash_protection" || IUSE="${IUSE} +sane_strict_overflow" # Stack clash protector added in gcc-8, strict overflow fixup dropped
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
-
+IUSE="$IUSE bootstrap-profiled"
 
 SLOT="${GCC_RELEASE_VER}"
 
@@ -110,69 +110,16 @@ src_prepare() {
 	toolchain_gcc_src_prepare
 }
 
-
-_gcc_prepare_gnat() {
-	export GNATBOOT="${S}/gnatboot"
-
-	if [ -f  gcc/ada/libgnat/s-parame.adb ] ; then
-		einfo "Patching ada stack handling..."
-		grep -q -e '-- Default_Sec_Stack_Size --' gcc/ada/libgnat/s-parame.adb && eapply "${FILESDIR}/Ada-Integer-overflow-in-SS_Allocate.patch"
-	fi
-
-	if use amd64; then
-		einfo "Preparing gnat64 for ada:"
-		make -C ${WORKDIR}/${GNAT64%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
-	elif use x86; then
-		einfo "Preparing gnat32 for ada:"
-		make -C ${WORKDIR}/${GNAT32%%.*} ins-all prefix=${S}/gnatboot > /dev/null || die "ada preparation failed"
-		find ${S}/gnatboot -name ld -exec mv -v {} {}.old \;
-	else
-		die "GNAT ada setup failed, only x86 and amd64 currently supported by this ebuild. Patches welcome!"
-	fi
-
-	# Setup additional paths as needed before we start.
-	use ada && export PATH="${GNATBOOT}/bin:${PATH}"
-}
-
-_gcc_prepare_gdc() {
-	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
-
-		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
-		local _gdc_gentoo_compat_patch="${FILESDIR}/lang/d/${PF}-gdc-gentoo-compatibility.patch"
-		[ -f "${_gdc_gentoo_compat_patch}" ] && eapply "$_gdc_gentoo_compat_patch"
-
-		./setup-gcc.sh ../gcc-${PV} || die "Could not setup GDC."
-	popd > /dev/null
-}
-
 src_configure() {
 	toolchain_gcc_src_configure
 }
 
 src_compile() {
-	cd $WORKDIR/objdir
-	unset ABI
-
-	if toolchain_gcc_is_crosscompiler || tc-is-cross-compiler; then
-		emake P= LIBPATH="${LIBPATH}" all || die "compile fail"
-	else
-		emake P= LIBPATH="${LIBPATH}" $(usex bootstrap-profiled profiledbootstrap all) || die "compile fail"
-		#emake LIBPATH="${LIBPATH}" bootstrap-lean || die "compile fail"
-	fi
+	toolchain_gcc_src_compile
 }
 
 src_test() {
-	cd "${WORKDIR}/objdir"
-	unset ABI
-	local tests_failed=0
-	if toolchain_gcc_is_crosscompiler || tc-is-cross-compiler; then
-		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
-	else
-		( ulimit -s 65536 && ${MAKE:-make} ${MAKEOPTS} LIBPATH="${ED%/}/${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log ) || tests_failed=1
-		"../${S##*/}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
-		[ ${tests_failed} -eq 0 ] || die "make -k check failed"
-	fi
+	toolchain_gcc_src_test
 }
 
 create_gcc_env_entry() {

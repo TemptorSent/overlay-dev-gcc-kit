@@ -1,6 +1,7 @@
+inherit eutils
 
 case "${EAPI}" in
-	5|6) inherit eapi7-ver;
+	5|6) inherit eapi7-ver ;;
 esac
 
 ## Helper functions
@@ -27,9 +28,10 @@ _run_function_if_exists() {
 
 # Play nice with crossdev package semantics
 if [ "${CTARGET}" = "${CHOST}" ] ; then
-	case "${CATEGORY}" in cross-*) export CTARGET="${CATEGORY#cross-}" ;; esac
+	case "${CATEGORY}" in cross-*) CTARGET="${CATEGORY#cross-}" ;; esac
 fi
 
+# Export our CHOST/CBUILD/CTARGET values
 export CBUILD CHOST CTARGET
 
 # True when we are building gcc on a different tuple than we will be running it.
@@ -358,7 +360,23 @@ toolchain_gcc_pkg_setup() {
 	export CXXFLAGS="$CFLAGS"
 
 
-	use doc || export MAKEINFO="/dev/null"
+	use_if_iuse doc || export MAKEINFO="/dev/null"
+
+	# Set our target libc here for both native and crosscompiler use.
+	if [ -z "${TARGET_LIBC}" ] ; then
+		case ${CTARGET} in
+			*-linux) TARGET_LIBC=no-idea;;
+			*-dietlibc) TARGET_LIBC=dietlibc;;
+			*-elf|*-eabi) TARGET_LIBC=newlib;;
+			*-freebsd*) TARGET_LIBC=freebsd-lib;;
+			*-gnu*) TARGET_LIBC=glibc;;
+			*-klibc) TARGET_LIBC=klibc;;
+			*-musl*) TARGET_LIBC=musl;;
+			*-uclibc*) TARGET_LIBC=uclibc;;
+			avr*) TARGET_LIBC=avr-libc;;
+		esac
+	fi
+	export TARGET_LIBC
 }
 
 toolchain_gcc_setup_crosscompiler() {
@@ -392,19 +410,19 @@ toolchain_gcc_src_prepare() {
 	toolchain_gcc_prepare_harden
 	toolchain_gcc_is_crosscompiler && toolchain_gcc_prepare_crosscompiler
 
-	if use multiarch ; then
-		_run_function_if_exists toolchain_gcc_prepare_multiarch
-	elif use multilib ; then
-		_run_function_if_exists toolchain_gcc_prepare_multilib
-	else
+	if in_iuse multilib && ! use multilib ; then
 		_run_function_if_exists toolchain_gcc_prepare_nomultilib
+	elif use_if_iuse multiarch || ! in_iuse multiarch && toolchain_gcc_is_crosscompiler ; then
+		_run_function_if_exists toolchain_gcc_prepare_multiarch
+	else
+		_run_function_if_exists toolchain_gcc_prepare_multilib
 	fi
 
 	# Ada gnat compiler bootstrap preparation
-	use ada && _gcc_prepare_gnat
+	use_in_iuse ada && _gcc_prepare_gnat
 
 	# Prepare GDC for d-lang support
-	use d && _gcc_prepare_gdc
+	use_in_iuse d && _gcc_prepare_gdc
 
 	# Must be called in src_prepare by EAPI6
 	eapply_user
@@ -429,18 +447,6 @@ toolchain_gcc_prepare_prereqs() {
 }
 
 toolchain_gcc_prepare_crosscompiler() {
-	case ${CTARGET} in
-		*-linux) TARGET_LIBC=no-idea;;
-		*-dietlibc) TARGET_LIBC=dietlibc;;
-		*-elf|*-eabi) TARGET_LIBC=newlib;;
-		*-freebsd*) TARGET_LIBC=freebsd-lib;;
-		*-gnu*) TARGET_LIBC=glibc;;
-		*-klibc) TARGET_LIBC=klibc;;
-		*-musl*) TARGET_LIBC=musl;;
-		*-uclibc*) TARGET_LIBC=uclibc;;
-		avr*) TARGET_LIBC=avr-libc;;
-	esac
-	export TARGET_LIBC
 
 	# if we don't tell it where to go, libcc1 stuff ends up in ${ROOT}/usr/lib (or rather dies colliding)
 	sed -e 's%cc1libdir = .*%cc1libdir = '"${ROOT}${PREFIX}"'/$(host_noncanonical)/$(target_noncanonical)/lib/$(gcc_version)%' \
@@ -458,12 +464,12 @@ toolchain_gcc_prepare_harden() {
 	_run_function_if_exists toolchain_gcc_prepare_harden_${GCCMAJOR}
 
 	# Enable FORTIFY_SOURCE by default
-	eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-fortify-source.patch )"
+	use_in_iuse default_fortify && eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-fortify-source.patch )"
 
-	if use dev_extra_warnings ; then
+	if use_in_iuse dev_extra_warnings ; then
 		eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-warn-format-security.patch* )"
 		eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-warn-trampolines.patch* )"
-		if use test ; then
+		if use_in_iuse test ; then
 			ewarn "USE=dev_extra_warnings enables warnings by default which are known to break gcc's tests!"
 		fi
 		einfo "Additional warnings enabled by default, this may break some tests and compilations with -Werror."
@@ -487,9 +493,9 @@ toolchain_gcc_prepare_harden_6_7() {
 		> "${T}/hardening-options.patch"
 	eapply "${T}/hardening-options.patch"
 	# Selectively enable features from hardening patches
-	use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
-	use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-	use sane_strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
+	use_in_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+	use_in_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
+	use_in_iuse sane_strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
 }
 
 toolchain_gcc_prepare_harden_6() {
@@ -511,14 +517,14 @@ toolchain_gcc_prepare_harden_8() {
 		> "${T}/hardening-options.patch"
 	eapply "${T}/hardening-options.patch"
 	# Selectively enable features from hardening patches
-	use ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
-	use link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-	use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+	use_in_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+	use_in_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
+	use_in_iuse stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
 }
 
 toolchain_gcc_prepare_multilib() {
-	# Force multilib directories to be ../lib{32,64,x32} rather than autodetecting
-	sed -e 's/\(MULTILIB_OSDIRNAMES[+ ]\?= m\)\([x]\?[63][42]\)=.*/\1\2=..\/lib\2/' -i gcc/config/i386/t-linux64
+	# Force multilib directories to be ../lib{32,64,x32} for linux-64 templates, rather than autodetecting.
+	sed -e 's/\(MULTILIB_OSDIRNAMES[[:space:]]*[+:]\?= m\)\([x]\?[63][42]\)=.*/\1\2=..\/lib\2/' -i gcc/config/*/t-linux64
 }
 
 
@@ -547,19 +553,19 @@ toolchain_gcc_conf_for_glibc() {
 
 toolchain_gcc_conf_harden() {
 	local myvtvenable="disable"
-	use vtv && myvtvenable="enable"
+	use_in_iuse vtv && myvtvenable="enable"
 
 	local myconf=(
-		$(use_enable pie default-pie)
-		$(use_enable ssp default-ssp)
-		$(use_enable libssp)
+		$(in_iuse pie && use_enable pie default-pie)
+		$(in_iuse ssp && use_enable ssp default-ssp)
+		$(in_iuse libssp && use_enable libssp)
 		--${myvtvenable}-vtable-verify
 		--${myvtvenable}-libvtv
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
 
 	# If we don't have libssp flag enabled, assume the libc provides ssp libs.
-	use libssp || export gcc_cv_libc_provides_ssp=yes
+	use_if_iuse libssp || export gcc_cv_libc_provides_ssp=yes
 
 }
 
@@ -647,7 +653,7 @@ toolchain_gcc_conf_native() {
 			--enable-threads=posix
 			--enable-__cxa_atexit
 			--enable-libstdcxx-time
-			$(use_enable openmp libgomp)
+			$(in_iuse openmp && use_enable openmp libgomp)
 			--enable-bootstrap
 			--enable-shared
 		)
@@ -803,17 +809,17 @@ toolchain_gcc_conf_languages() {
 	# Determine language support:
 	local conf_gcc_lang=()
 	local GCC_LANG="c,c++"
-	if use objc; then
+	if use_if_iuse objc; then
 		GCC_LANG+=",objc"
-		use objc-gc && conf_gcc_lang+=( --enable-objc-gc )
-		use objc++ && GCC_LANG+=",obj-c++"
+		use_if_iuse objc-gc && conf_gcc_lang+=( --enable-objc-gc )
+		use_if_iuse objc++ && GCC_LANG+=",obj-c++"
 	fi
 
-	use fortran && GCC_LANG+=",fortran" || conf_gcc_lang+=( --disable-libquadmath )
+	use_if_iuse fortran && GCC_LANG+=",fortran" || conf_gcc_lang+=( --disable-libquadmath )
 
-	use go && GCC_LANG+=",go"
+	use_if_iuse go && GCC_LANG+=",go"
 
-	if use ada ; then
+	if use_if_iuse ada ; then
 		GCC_LANG+=",ada"
 		conf_gcc_lang+=(
 			CC=${GNATBOOT}/bin/gcc
@@ -826,7 +832,10 @@ toolchain_gcc_conf_languages() {
 		)
 	fi
 
-	use d && GCC_LANG+=",d"
+	use_if_iuse d && GCC_LANG+=",d"
+
+	# Enable LTO 'language'
+	GCC_LANG+=",lto"
 
 	conf_gcc_lang+=( --enable-languages=${GCC_LANG} )
 
@@ -850,17 +859,17 @@ toolchain_gcc_src_configure() {
 	fi
 
 	# Configure for multiarch, multilib, or nomultilib as requested
-	if use multiarch ; then
-		toolchain_gcc_conf_multiarch
-	elif use multilib ; then
-		toolchain_gcc_conf_multilib
+	if in_iuse multilib && ! use multilib ; then
+		_run_function_if_exists toolchain_gcc_conf_nomultilib
+	elif use_if_iuse multiarch || ! in_iuse multiarch && toolchain_gcc_is_crosscompiler ; then
+		_run_function_if_exists toolchain_gcc_conf_multiarch
 	else
-		toolchain_gcc_conf_nomultilib
+		_run_function_if_exists toolchain_gcc_conf_multilib
 	fi
 
 
 	local branding="Funtoo"
-	if use hardened; then
+	if use_if_iuse hardened; then
 		branding="$branding Hardened ${PVR}"
 	else
 		branding="$branding ${PVR}"
@@ -880,9 +889,9 @@ toolchain_gcc_src_configure() {
 
 	# Set other various config options (needs cleanup later)
 	myconf+=(
-		$(use_enable sanitize libsanitizer)
-		$(usex pch "" "--disable-libstdcxx-pch")
-		$(usex graphite "--disable-isl-version-check" "")
+		$(in_iuse sanitize && use_enable sanitize libsanitizer)
+		$(in_iuse pch && usex pch "" "--disable-libstdcxx-pch")
+		$(in_iuse graphite && usex graphite "--disable-isl-version-check" "")
 		--enable-clocale=gnu
 		--host=$CHOST
 		--disable-werror
@@ -908,7 +917,7 @@ toolchain_gcc_src_configure() {
 	toolchain_gcc_conf_arch
 
 	# Configure multilingual support
-	if use nls ; then
+	if use_if_iuse nls ; then
 		myconf+=(
 			--enable-nls
 			--with-included-gettext
@@ -928,14 +937,51 @@ toolchain_gcc_src_configure() {
 
 	# Run post-configure cleanups for crosscompilers
 	toolchain_gcc_is_crosscompiler && toolchain_gcc_postconf_crosscompiler
+
+
+	# Set our compilation target.
+	TOOLCHAIN_GCC_TARGET="all"
+	if toolchain_gcc_is_crosscompiler ; then
+		:
+	elif use_if_iuse bootstrap-profiled ; then
+		TOOLCHAIN_GCC_TARGET="profiledbootstrap"
+	fi
+
+	export TOOLCHAIN_GCC_TARGET
 }
 
 
 toolchain_gcc_postconf_crosscompiler() {
 	# Is this really just for crosscompiles, or is it needed for native arm builds too?
-	if use arm ; then
+	if use_if_iuse arm ; then
 		sed -i "s/none-/${CHOST%%-*}-/g" ${WORKDIR}/objdir/Makefile || die
 	fi
 }
 
+toolchain_gcc_src_compile_target() {
+	(	unset ABI P
+		export LIBPATH="${LIBPATH}"
+		emake ${1} || die "Failed to build target '${1}'."
+	)
+}
+
+toolchain_gcc_src_compile() {
+	cd "${WORKDIR}/objdir"
+
+	toolchain_gcc_src_compile_target ${TOOLCHAIN_GCC_TARGET:-${TOOLCHAIN_GCC_TARGET_DEFAULT:-all}}
+}
+
+toolchain_gcc_src_test() {
+
+	cd "${WORKDIR}/objdir"
+	unset ABI
+	local tests_failed=0
+	if toolchain_gcc_is_crosscompiler || tc-is-cross-compiler; then
+		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
+	else
+		( ulimit -s 65536 && ${MAKE:-make} ${MAKEOPTS} LIBPATH="${ED%/}/${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log ) || tests_failed=1
+		"../${S##*/}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
+		[ ${tests_failed} -eq 0 ] || die "make -k check failed"
+	fi
+}
 
