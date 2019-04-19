@@ -11,179 +11,6 @@ _run_function_if_exists() {
 	[ "$(type -t ${1})" = "function" ] && ${1}
 }
 
-##
-# Build/Crossbuild environment
-# CBUILD -- Builder system
-# CHOST  -- Runtime system
-# CTARGET -- Target system
-#
-# _FOR_BUILD -- Used to build artifacts (on CBUILD) to run on CHOST.
-# _FOR_TARGET -- Used when building artifacts for CTARGET.
-##
-
-
-# Define any undefined C* variables to sane values
-: "${CTARGET:=${CHOST:=${CBUILD}}}"
-: "${CBUILD:=${CHOST}}"
-
-# Play nice with crossdev package semantics
-if [ "${CTARGET}" = "${CHOST}" ] ; then
-	case "${CATEGORY}" in cross-*) CTARGET="${CATEGORY#cross-}" ;; esac
-fi
-
-# Export our CHOST/CBUILD/CTARGET values
-export CBUILD CHOST CTARGET
-
-# True when we are building gcc on a different tuple than we will be running it.
-toolchain_gcc_is_crossbuild() {
-	[ "${CBUILD:-${CHOST}}" != "${CHOST}" ]
-}
-
-# True when we will be building gcc to target a different tuple than it runs on.
-toolchain_gcc_is_crosscompiler() {
-	[ "${CHOST}" != "${CTARGET:-${CHOST}}" ]
-}
-
-# True when cross-building a cross-compiler.
-toolchain_gcc_is_canadiancross() {
-	toolchain_gcc_is_crossbuild && toolchain_gcc_is_crosscompiler
-}
-
-
-# To be defined eventually
-
-# BUILD -m flags, STAGE1_CFLAGS need to be filtered based on what CBUILD toolchain supports,
-# BOOT_CFLAGS needs filtering based on current package version support.
-# These will be passed in STAGE1_CFLAGS and/or BOOT_CFLAGS when building the compiler.
-: "${MCPU_FOR_BUILD:=}"
-: "${MARCH_FOR_BUILD:=}"
-: "${MTUNE_FOR_BUILD:=}"
-: "${MABI_FOR_BUILD:=}"
-: "${MFPU_FOR_BUILD:=}"
-: "${MFLOAT_FOR_BUILD:=}"
-
-toolchain_gcc_setup_tools() {
-
-	if toolchain_gcc_is_crossbuild ; then
-		AR_FOR_BUILD="${AR_FOR_BUILD-ar}"
-		AS_FOR_BUILD="${AS_FOR_BUILD-as}"
-		CC_FOR_BUILD="${CC_FOR_BUILD-gcc}"
-		CXX_FOR_BUILD="${CXX_FOR_BUILD-g++}"
-		GFORTRAN_FOR_BUILD="${GFORTRAN_FOR_BUILD-gfortran}"
-		GOC_FOR_BUILD="${GOC_FOR_BUILD-gccgo}"
-		DLLTOOL_FOR_BUILD="${DLLTOOL_FOR_BUILD-dlltool}"
-		LD_FOR_BUILD="${LD_FOR_BUILD-ld}"
-		NM_FOR_BUILD="${NM_FOR_BUILD-nm}"
-		RANLIB_FOR_BUILD="${RANLIB_FOR_BUILD-ranlib}"
-		WINDRES_FOR_BUILD="${WINDRES_FOR_BUILD-windres}"
-		WINDMC_FOR_BUILD="${WINDMC_FOR_BUILD-windmc}"
-	else
-		AR_FOR_BUILD="${AR}"
-		AS_FOR_BUILD="${AS}"
-		CC_FOR_BUILD="${CC}"
-		CXX_FOR_BUILD="${CXX}"
-		GFORTRAN_FOR_BUILD="${GFORTRAN}"
-		GOC_FOR_BUILD="${GOC}"
-		DLLTOOL_FOR_BUILD="${DLLTOOL}"
-		LD_FOR_BUILD="${LD}"
-		NM_FOR_BUILD="${NM}"
-		RANLIB_FOR_BUILD="${RANLIB}"
-		WINDRES_FOR_BUILD="${WINDRES}"
-		WINDMC_FOR_BUILD="${WINDMC}"
-	fi
-
-	if toolchain_gcc_is_crosscompiler ; then
-		AR_FOR_TARGET="${AR_FOR_TARGET-ar}"
-		AS_FOR_TARGET="${AS_FOR_TARGET-as}"
-		CC_FOR_TARGET="${CC_FOR_TARGET-gcc}"
-		CXX_FOR_TARGET="${CXX_FOR_TARGET-g++}"
-		GFORTRAN_FOR_TARGET="${GFORTRAN_FOR_TARGET-gfortran}"
-		GOC_FOR_TARGET="${GOC_FOR_TARGET-gccgo}"
-		DLLTOOL_FOR_TARGET="${DLLTOOL_FOR_TARGET-dlltool}"
-		LD_FOR_TARGET="${LD_FOR_TARGET-ld}"
-		LIPO_FOR_TARGET="${LIPO_FOR_TARGET-lipo}"
-		NM_FOR_TARGET="${NM_FOR_TARGET-nm}"
-		OBJCOPY_FOR_TARGET="${OBJCOPY_FOR_TARGET-objcopy}"
-		OBJDUMP_FOR_TARGET="${OBJDUMP_FOR_TARGET-objdump}"
-		RANLIB_FOR_TARGET="${RANLIB_FOR_TARGET-ranlib}"
-		READELF_FOR_TARGET="${READELF_FOR_TARGET-readelf}"
-		STRIP_FOR_TARGET="${STRIP_FOR_TARGET-strip}"
-		WINDRES_FOR_TARGET="${WINDRES_FOR_TARGET-windres}"
-		WINDMC_FOR_TARGET="${WINDMC_FOR_TARGET-windmc}"
-	else
-		AR_FOR_TARGET="${AR}"
-		AS_FOR_TARGET="${AS}"
-		CC_FOR_TARGET="${CC}"
-		CXX_FOR_TARGET="${CXX}"
-		GFORTRAN_FOR_TARGET="${GFORTRAN}"
-		GOC_FOR_TARGET="${GOC}"
-		DLLTOOL_FOR_TARGET="${DLLTOOL}"
-		LD_FOR_TARGET="${LD}"
-		LIPO_FOR_TARGET=${LIPO}
-		NM_FOR_TARGET="${NM}"
-		OBJCOPY_FOR_TARGET="${OBJCOPY}"
-		OBJDUMP_FOR_TARGET="${OBJDUMP}"
-		RANLIB_FOR_TARGET="${RANLIB}"
-		READELF_FOR_TARGET="${READELF}"
-		STRIP_FOR_TARGET="${STRIP}"
-		WINDRES_FOR_TARGET="${WINDRES}"
-		WINDMC_FOR_TARGET="${WINDMC}"
-	fi
-}
-
-
-
-# TARGET -m flags, need to be filtered based on what current package version supports
-# They will be passed as --with-<flagname>=<value> to configure.
-: "${MCPU_FOR_TARGET:=}"
-: "${MCPU32_FOR_TARGET:=}"
-: "${MCPU64_FOR_TARGET:=}"
-: "${MARCH_FOR_TARGET:=}"
-: "${MARCH32_FOR_TARGET:=}"
-: "${MARCH64_FOR_TARGET:=}"
-: "${MTUNE_FOR_TARGET:=}"
-: "${MTUNE32_FOR_TARGET:=}"
-: "${MTUNE64_FOR_TARGET:=}"
-: "${MABI_FOR_TARGET:=}"
-: "${MFPU_FOR_TARGET:=}"
-: "${MFLOAT_FOR_TARGET:=}"
-
-
-
-
-
-##
-# ABI handling
-##
-# These imported from gentoo's toolchain.eclass -- they should change, as the presumptions don't hold for cross-build normally
-if ! toolchain_gcc_is_crosscompiler ; then
-	: ${ABI:=${DEFAULT_ABI}}
-	: ${TARGET_ABI:=${ABI}}
-	: ${TARGET_MULTILIB_ABIS:=${MULTILIB_ABIS}}
-	: ${TARGET_DEFAULT_ABI:=${DEFAULT_ABI}}
-fi
-
-# Gcc flag for various stages
-
-#STAGE1_CFLAGS - Used to build stage1 of new compiler using existing compiler. Also applies to non-bootstrap builds.
-#BOOT_CFLAGS - Used to build new compiler against previous bootstrap stage compiler.
-
-if ! toolchain_gcc_is_crossbuild ; then
-	CFLAGS_FOR_BUILD="${CFLAGS_FOR_BUILD-${CFLAGS}}"
-	CXXFLAGS_FOR_BUILD="${CXXFLAGS_FOR_BUILD-${CXXFLAGS}}"
-	LDFLAGS_FOR_BUILD="${LDFLAGS_FOR_BUILD-${LDFLAGS}}"
-fi
-
-if ! toolchain_gcc_is_crosscompiler ; then
-	CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET-${CFLAGS}}"
-	CXXFLAGS_FOR_TARGET="${CXXFLAGS_FOR_TARGET-${CXXFLAGS}}"
-	LDFLAGS_FOR_TARGET="${LDFLAGS_FOR_TARGET-${LDFLAGS}}"
-fi
-
-
-
-
-
 # toolchain_gcc_version_setup <gcc-pv[r]>
 toolchain_gcc_version_setup() {
 	# If we've been passed an argument, treat it as our TOOLCHAIN_GCC_PVR
@@ -255,6 +82,7 @@ toolchain_gcc_version_setup() {
 	[ -n "${GCC_SVN_REV}" ] && export GCC_SVN_REV GCC_SVN_PATCH_NAME
 }
 
+
 # Call after toolchain_gcc_version_setup
 toolchain_gcc_get_src_uri() {
 	: "${GCC_SRC_URI_ROOT:="ftp://gcc.gnu.org/pub/gcc"}"
@@ -279,18 +107,39 @@ toolchain_gcc_get_src_uri() {
 	fi
 
 	## Grab prerequisites as well if building them in-tree is enabled
-	if [ "${GCC_BUILD_IN_PREREQS:-0}" != "0" ] ; then
+	if [ "${IUSE##*system-mathlibs*}" != "${IUSE}" ] ; then
 		: "${GCC_PREREQ_GMP:="gmp-6.1.0"}"
-		GCC_SRC_URI="${GCC_SRC_URI} mirror://gnu/gmp/${GCC_PREREQ_GMP}.tar.xz"
 		: "${GCC_PREREQ_MPFR:="mpfr-3.1.4"}"
-		GCC_SRC_URI="${GCC_SRC_URI} https://www.mpfr.org/${GCC_PREREQ_MPFR}/${GCC_PREREQ_MPFR}.tar.xz"
 		: "${GCC_PREREQ_MPC:="mpc-1.0.3"}"
-		GCC_SRC_URI="${GCC_SRC_URI} https://ftp.gnu.org/gnu/mpc/${GCC_PREREQ_MPC}.tar.gz"
 		: "${GCC_PREREQ_ISL:="isl-0.18"}"
-		GCC_SRC_URI="${GCC_SRC_URI} graphite? ( https://isl.gforge.inria.fr/${GCC_PREREQ_ISL}.tar.xz )"
+
+		GCC_SRC_URI="${GCC_SRC_URI}
+			!system-mathlibs? (
+				mirror://gnu/gmp/${GCC_PREREQ_GMP}.tar.xz
+				https://www.mpfr.org/${GCC_PREREQ_MPFR}/${GCC_PREREQ_MPFR}.tar.xz
+				https://ftp.gnu.org/gnu/mpc/${GCC_PREREQ_MPC}.tar.gz
+				graphite? ( https://isl.gforge.inria.fr/${GCC_PREREQ_ISL}.tar.xz )
+			)
+		"
 
 		# Export these in case they were defined with default values here.
 		export GCC_PREREQ_GMP GCC_PREREQ_MPFR GCC_PREREQ_MPC GCC_PREREQ_ISL
+	fi
+
+	if [ "${IUSE##*bundle-binutils*}" != "${IUSE}" ] ; then
+		: "${GCC_PREREQ_BINUTILS:="binutils-2.31.1"}"
+		GCC_SRC_URI="${GCC_SRC_URI}
+			bundle-binutils? ( ftp://gcc.gnu.org/pub/binutils/releases/${GCC_PREREQ_BINUTILS}.tar.xz )
+		"
+		export GCC_PREREQ_BINUTILS
+	fi
+
+	if [ "${IUSE##*newlib*}" != "${IUSE}" ] ; then
+		: "${GCC_PREREQ_NEWLIB:="newlib-3.1.0"}"
+		GCC_SRC_URI="${GCC_SRC_URI}
+			newlib? ( ftp://sourceware.org/pub/newlib/${GCC_PREREQ_NEWLIB}.tar.gz )
+		"
+		export GCC_PREREQ_NEWLIB
 	fi
 
 	export GCC_SRC_URI
@@ -303,16 +152,229 @@ get_gcc_src_uri() {
 }
 
 
+# Needs rewrite to clean up and abstract
 # Unpack the toolchain
 toolchain_gcc_src_unpack() {
-	unpack ${A}
+	default
 
-	# Move any prereqs we unpacked into the gcc source tree with the version stripped from the dir name.
-	local myprereq
-	for myprereq in "${GCC_PREREQ_GMP}" "${GCC_PREREQ_MPFR}" "${GCC_PREREQ_MPC}" "${GCC_PREREQ_ISL}" ; do
-		[ -n "${myprereq}" ] && [ -d "${WORKDIR}/${myprereq}" ] && mv -v "${WORKDIR}/${myprereq}" "${WORKDIR}/gcc-${GCC_RELEASE_VER}/${myprereq%%-*}"
+	# Build the combined build tree
+	mkdir -p "${WORKDIR}/gcc"
+	for mydir in "${GCC_PREREQ_NEWLIB}" "${GCC_PREREQ_BINUTILS}" "gcc-${GCC_RELEASE_VER}" ; do
+		#[ -n "${mydir}" ] && [ -d "${WORKDIR}/${mydir}" ] && sh "${WORKDIR}/gcc-${GCC_RELEASE_VER}/symlink-tree" "${WORKDIR}/${mydir}"
+		if [ -n "${mydir}" ] && [ -d "${WORKDIR}/${mydir}" ] ; then
+			cd "${WORKDIR}/${mydir}" && find . -print | cpio -pdlmu ../gcc && cd -
+		fi
 	done
+
+	# Fix outdated ansidecl.h in gcc needed for binutils
+	if [ -n "${GCC_PREREQ_BINUTILS}" ] && [ -d "${WORKDIR}/${GCC_PREREQ_BINUTILS}" ] ; then
+		cd "${WORKDIR}/${GCC_PREREQ_BINUTILS}" && find ./include/ansidecl.h -print | cpio -pdlm ../gcc && cd -
+	fi
+		
+
+
+	# Link any mathlibs we unpacked into the gcc source tree with the version stripped from the dir name.
+	local mathlib
+	for mathlib in "${GCC_PREREQ_GMP}" "${GCC_PREREQ_MPFR}" "${GCC_PREREQ_MPC}" "${GCC_PREREQ_ISL}" ; do
+		#[ -n "${mathlib}" ] && [ -d "${WORKDIR}/${mathlib}" ] && mv -v "${WORKDIR}/${mathlib}" "${WORKDIR}/gcc-${GCC_RELEASE_VER}/${mathlib%%-*}"
+		[ -n "${mathlib}" ] && [ -d "${WORKDIR}/${mathlib}" ] && rm -rf "${WORKDIR}/gcc/${mathlib%%-*}" && ln -sfv "${WORKDIR}/${mathlib}" "${WORKDIR}/gcc/${mathlib%%-*}"
+	done
+
 }
+
+
+##
+# Build/Crossbuild environment
+# CBUILD -- Builder system
+# CHOST  -- Runtime system
+# CTARGET -- Target system
+#
+# _FOR_BUILD -- Used to build artifacts (on CBUILD) to run on CHOST.
+# _FOR_TARGET -- Used when building artifacts for CTARGET.
+##
+
+
+# Define any undefined C* variables to sane values
+: "${CTARGET:=${CHOST}}"
+: "${CBUILD:=${CHOST}}"
+
+# Play nice with crossdev package semantics
+if [ "${CTARGET}" = "${CHOST}" ] ; then
+	case "${CATEGORY}" in cross-*) CTARGET="${CATEGORY#cross-}" ;; esac
+fi
+
+# Export our CHOST/CBUILD/CTARGET values
+export CBUILD CHOST CTARGET
+
+# True when we are building gcc on a different tuple than we will be running it.
+toolchain_gcc_is_crossbuild() {
+	[ "${CBUILD:-${CHOST}}" != "${CHOST}" ]
+}
+
+# True when we will be building gcc to target a different tuple than it runs on.
+toolchain_gcc_is_crosscompiler() {
+	[ "${CHOST}" != "${CTARGET:-${CHOST}}" ]
+}
+
+# True when cross-building a cross-compiler.
+toolchain_gcc_is_canadiancross() {
+	toolchain_gcc_is_crossbuild && toolchain_gcc_is_crosscompiler
+}
+
+
+
+toolchain_gcc_setup_tools() {
+
+	if toolchain_gcc_is_crossbuild ; then
+		AR_FOR_BUILD="${AR_FOR_BUILD-ar}"
+		AS_FOR_BUILD="${AS_FOR_BUILD-as}"
+		CC_FOR_BUILD="${CC_FOR_BUILD-gcc}"
+		CXX_FOR_BUILD="${CXX_FOR_BUILD-g++}"
+		GFORTRAN_FOR_BUILD="${GFORTRAN_FOR_BUILD-gfortran}"
+		GOC_FOR_BUILD="${GOC_FOR_BUILD-gccgo}"
+		DLLTOOL_FOR_BUILD="${DLLTOOL_FOR_BUILD-dlltool}"
+		LD_FOR_BUILD="${LD_FOR_BUILD-ld}"
+		NM_FOR_BUILD="${NM_FOR_BUILD-nm}"
+		RANLIB_FOR_BUILD="${RANLIB_FOR_BUILD-ranlib}"
+		WINDRES_FOR_BUILD="${WINDRES_FOR_BUILD-windres}"
+		WINDMC_FOR_BUILD="${WINDMC_FOR_BUILD-windmc}"
+	else
+		AR_FOR_BUILD="${AR}"
+		AS_FOR_BUILD="${AS}"
+		CC_FOR_BUILD="${CC}"
+		CXX_FOR_BUILD="${CXX}"
+		GFORTRAN_FOR_BUILD="${GFORTRAN}"
+		GOC_FOR_BUILD="${GOC}"
+		DLLTOOL_FOR_BUILD="${DLLTOOL}"
+		LD_FOR_BUILD="${LD}"
+		NM_FOR_BUILD="${NM}"
+		RANLIB_FOR_BUILD="${RANLIB}"
+		WINDRES_FOR_BUILD="${WINDRES}"
+		WINDMC_FOR_BUILD="${WINDMC}"
+	fi
+
+	if toolchain_gcc_is_crosscompiler ; then
+		AR_FOR_TARGET="${AR_FOR_TARGET-ar}"
+		AS_FOR_TARGET="${AS_FOR_TARGET-as}"
+		CC_FOR_TARGET="${CC_FOR_TARGET-gcc}"
+		CXX_FOR_TARGET="${CXX_FOR_TARGET-g++}"
+		GFORTRAN_FOR_TARGET="${GFORTRAN_FOR_TARGET-gfortran}"
+		GOC_FOR_TARGET="${GOC_FOR_TARGET-gccgo}"
+		DLLTOOL_FOR_TARGET="${DLLTOOL_FOR_TARGET-dlltool}"
+		LD_FOR_TARGET="${LD_FOR_TARGET-ld}"
+		LIPO_FOR_TARGET="${LIPO_FOR_TARGET-lipo}"
+		NM_FOR_TARGET="${NM_FOR_TARGET-nm}"
+		OBJCOPY_FOR_TARGET="${OBJCOPY_FOR_TARGET-objcopy}"
+		OBJDUMP_FOR_TARGET="${OBJDUMP_FOR_TARGET-objdump}"
+		RANLIB_FOR_TARGET="${RANLIB_FOR_TARGET-ranlib}"
+		READELF_FOR_TARGET="${READELF_FOR_TARGET-readelf}"
+		STRIP_FOR_TARGET="${STRIP_FOR_TARGET-strip}"
+		WINDRES_FOR_TARGET="${WINDRES_FOR_TARGET-windres}"
+		WINDMC_FOR_TARGET="${WINDMC_FOR_TARGET-windmc}"
+	else
+		AR_FOR_TARGET="${AR}"
+		AS_FOR_TARGET="${AS}"
+		CC_FOR_TARGET="${CC}"
+		CXX_FOR_TARGET="${CXX}"
+		GFORTRAN_FOR_TARGET="${GFORTRAN}"
+		GOC_FOR_TARGET="${GOC}"
+		DLLTOOL_FOR_TARGET="${DLLTOOL}"
+		LD_FOR_TARGET="${LD}"
+		LIPO_FOR_TARGET=${LIPO}
+		NM_FOR_TARGET="${NM}"
+		OBJCOPY_FOR_TARGET="${OBJCOPY}"
+		OBJDUMP_FOR_TARGET="${OBJDUMP}"
+		RANLIB_FOR_TARGET="${RANLIB}"
+		READELF_FOR_TARGET="${READELF}"
+		STRIP_FOR_TARGET="${STRIP}"
+		WINDRES_FOR_TARGET="${WINDRES}"
+		WINDMC_FOR_TARGET="${WINDMC}"
+	fi
+
+	if use_if_iuse bundle-binutils ; then
+		AR_FOR_TARGET="${AR_FOR_TARGET-binutils/ar}"
+		AS_FOR_TARGET="${AS_FOR_TARGET-gas/as-new}"
+		DLLTOOL_FOR_TARGET="${DLLTOOL_FOR_TARGET-binutils/dlltool}"
+		LD_FOR_TARGET="${LD_FOR_TARGET-ld/ld-new}"
+		NM_FOR_TARGET="${NM_FOR_TARGET-binutils/nm-new}"
+		OBJCOPY_FOR_TARGET="${OBJCOPY_FOR_TARGET-binutils/objcopy}"
+		OBJDUMP_FOR_TARGET="${OBJDUMP_FOR_TARGET-binutils/objdump}"
+		RANLIB_FOR_TARGET="${RANLIB_FOR_TARGET-binutils/ranlib}"
+		READELF_FOR_TARGET="${READELF_FOR_TARGET-binutils/readelf}"
+		STRIP_FOR_TARGET="${STRIP_FOR_TARGET-binutils/strip-new}"
+		WINDRES_FOR_TARGET="${WINDRES_FOR_TARGET-binutils/windres}"
+		WINDMC_FOR_TARGET="${WINDMC_FOR_TARGET-binutils/windmc}"
+	fi
+}
+
+# To be defined eventually
+
+# BUILD -m flags, STAGE1_CFLAGS need to be filtered based on what CBUILD toolchain supports,
+# BOOT_CFLAGS needs filtering based on current package version support.
+# These will be passed in STAGE1_CFLAGS and/or BOOT_CFLAGS when building the compiler.
+toolchain_gcc_setup_build_mopts() {
+	: "${MCPU_FOR_BUILD:=}"
+	: "${MARCH_FOR_BUILD:=}"
+	: "${MTUNE_FOR_BUILD:=}"
+	: "${MABI_FOR_BUILD:=}"
+	: "${MFPU_FOR_BUILD:=}"
+	: "${MFLOAT_FOR_BUILD:=}"
+}
+
+toolchain_gcc_setup_target_mopts() {
+	# TARGET -m flags, need to be filtered based on what current package version supports
+	# They will be passed as --with-<flagname>=<value> to configure.
+	: "${MCPU_FOR_TARGET:=}"
+	: "${MCPU32_FOR_TARGET:=}"
+	: "${MCPU64_FOR_TARGET:=}"
+	: "${MARCH_FOR_TARGET:=}"
+	: "${MARCH32_FOR_TARGET:=}"
+	: "${MARCH64_FOR_TARGET:=}"
+	: "${MTUNE_FOR_TARGET:=}"
+	: "${MTUNE32_FOR_TARGET:=}"
+	: "${MTUNE64_FOR_TARGET:=}"
+	: "${MABI_FOR_TARGET:=}"
+	: "${MFPU_FOR_TARGET:=}"
+	: "${MFLOAT_FOR_TARGET:=}"
+}
+
+
+
+
+##
+# ABI handling
+##
+# These imported from gentoo's toolchain.eclass -- they should change, as the presumptions don't hold for cross-build normally
+toolchain_gcc_setup_abi() {
+	if ! toolchain_gcc_is_crosscompiler ; then
+		: ${ABI:=${DEFAULT_ABI}}
+		: ${TARGET_ABI:=${ABI}}
+		: ${TARGET_MULTILIB_ABIS:=${MULTILIB_ABIS}}
+		: ${TARGET_DEFAULT_ABI:=${DEFAULT_ABI}}
+	fi
+}
+
+toolchain_gcc_setup_flags() {
+	# Gcc flag for various stages
+
+	#STAGE1_CFLAGS - Used to build stage1 of new compiler using existing compiler. Also applies to non-bootstrap builds.
+	#BOOT_CFLAGS - Used to build new compiler against previous bootstrap stage compiler.
+
+	if ! toolchain_gcc_is_crossbuild ; then
+		CFLAGS_FOR_BUILD="${CFLAGS_FOR_BUILD-${CFLAGS}}"
+		CXXFLAGS_FOR_BUILD="${CXXFLAGS_FOR_BUILD-${CXXFLAGS}}"
+		LDFLAGS_FOR_BUILD="${LDFLAGS_FOR_BUILD-${LDFLAGS}}"
+	fi
+
+	if ! toolchain_gcc_is_crosscompiler ; then
+		CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET-${CFLAGS}}"
+		CXXFLAGS_FOR_TARGET="${CXXFLAGS_FOR_TARGET-${CXXFLAGS}}"
+		LDFLAGS_FOR_TARGET="${LDFLAGS_FOR_TARGET-${LDFLAGS}}"
+	fi
+}
+
+
+
 
 
 ### THE FOLLOWING NEED REWRITES ###
@@ -339,29 +401,57 @@ toolchain_gcc_pkg_setup() {
 	unset LDFLAGS
 	unset GCC_SPECS # we don't want to use the installed compiler's specs to build gcc!
 	unset LANGUAGES #265283
-	export PREFIX="${TOOLCHAIN_PREFIX:-${EPREFIX}/usr}"
-
-
-	if toolchain_gcc_is_crosscompiler; then
-		toolchain_gcc_setup_crosscompiler
-	else
-		toolchain_gcc_setup_native
+	#export PREFIX="${TOOLCHAIN_PREFIX:-${EPREFIX}/usr}"
+	export PREFIX="${TOOLCHAIN_PREFIX:-${EPREFIX}/usr/${CHOST}/gcc-${GCC_CONFIG_VER}}"
+	export EXEC_PREFIX="${TOOLCHAIN_EXEC_PREFIX:-${TOOLCHAIN_PREFIX}}"
+	if false ; then
+		unset AR
+		unset AS
+		unset CC
+		unset CXX
+		unset GFORTRAN
+		unset GOC
+		unset DLLTOOL
+		unset LD
+		unset LIPO
+		unset NM
+		unset OBJCOPY
+		unset OBJDUMP
+		unset RANLIB
+		unset READELF
+		unset STRIP
+		unset WINDRES
+		unset WINDMC
 	fi
 
-	export LIBPATH="${TOOLCHAIN_LIBPATH:-${PREFIX}/lib/gcc-lib/${CTARGET}/${GCC_CONFIG_VER}}"
-	export DATAPATH="${TOOLCHAIN_DATAPATH:-${PREFIX}/share/gcc-data/${CTARGET}/${GCC_CONFIG_VER}}"
+	#if toolchain_gcc_is_crosscompiler; then
+	#	toolchain_gcc_setup_crosscompiler
+	#else
+	#	toolchain_gcc_setup_native
+	#fi
 
-	export INCLUDEPATH="${TOOLCHAIN_INCLUDEPATH:-${LIBPATH}/include}"
-	export STDCXX_INCDIR="${TOOLCHAIN_STDCXX_INCDIR:-${LIBPATH}/include/g++-v${GCC_BRANCH_VER}}"
+	#export LIBPATH="${TOOLCHAIN_LIBPATH:-${PREFIX}/lib/gcc-lib/${CTARGET}/${GCC_CONFIG_VER}}"
+	#export DATAPATH="${TOOLCHAIN_DATAPATH:-${PREFIX}/share/gcc-data/${CTARGET}/${GCC_CONFIG_VER}}"
+
+	#export INCLUDEPATH="${TOOLCHAIN_INCLUDEPATH:-${LIBPATH}/include}"
+	#export STDCXX_INCDIR="${TOOLCHAIN_STDCXX_INCDIR:-${LIBPATH}/include/g++-v${GCC_BRANCH_VER}}"
 
 	export CFLAGS="${GCC_BUILD_CFLAGS:--O2 -pipe}"
 	export FFLAGS="$CFLAGS"
 	export FCFLAGS="$CFLAGS"
 	export CXXFLAGS="$CFLAGS"
 
+	# Add bootstrap configs to BUILD_CONFIG based on use flags
+	use bootstrap-lto && BUILD_CONFIG="${BUILD_CONFIG:+${BUILD_CONFIG} }bootstrap-lto"
+	use bootstrap-O3 && BUILD_CONFIG="${BUILD_CONFIG:+${BUILD_CONFIG} }bootstrap-O3"
+	export BUILD_CONFIG
+
+	toolchain_gcc_setup_libc
 
 	use_if_iuse doc || export MAKEINFO="/dev/null"
+}
 
+toolchain_gcc_setup_libc() {
 	# Set our target libc here for both native and crosscompiler use.
 	if [ -z "${TARGET_LIBC}" ] ; then
 		case ${CTARGET} in
@@ -390,13 +480,14 @@ toolchain_gcc_setup_native() {
 
 
 toolchain_gcc_src_prepare() {
-	[ "${GCC_BUILD_IN_PREREQS:-0}" != "0" ] && toolchain_gcc_prepare_prereqs
+
 	# Run preperations for dependencies first
+	in_iuse system-mathlibs && ! use system-mathlibs && toolchain_gcc_prepare_mathlibs
 
 	# Patch from release to svn branch tip for backports
 	[ "x${GCC_SVN_PATCH}" = "x" ] || eapply "${GCC_SVN_PATCH}"
 
-
+	# Apply gentoo patches
 	if [ -n "$GENTOO_PATCHES_VER" ]; then
 		einfo "Applying Gentoo patches ..."
 		for my_patch in ${GENTOO_PATCHES[*]} ; do
@@ -404,11 +495,10 @@ toolchain_gcc_src_prepare() {
 		done
 	fi
 
-	#use bootstrap-lto && eapply "${FILESDIR}/Fix-bootstrap-miscompare-with-LTO-bootstrap-PR85571.patch"
 
 	# Harden things up:
 	toolchain_gcc_prepare_harden
-	toolchain_gcc_is_crosscompiler && toolchain_gcc_prepare_crosscompiler
+	#toolchain_gcc_is_crosscompiler && toolchain_gcc_prepare_crosscompiler
 
 	if in_iuse multilib && ! use multilib ; then
 		_run_function_if_exists toolchain_gcc_prepare_nomultilib
@@ -419,10 +509,10 @@ toolchain_gcc_src_prepare() {
 	fi
 
 	# Ada gnat compiler bootstrap preparation
-	use_in_iuse ada && _gcc_prepare_gnat
+	use_if_iuse ada && _gcc_prepare_gnat
 
 	# Prepare GDC for d-lang support
-	use_in_iuse d && _gcc_prepare_gdc
+	use_if_iuse d && _gcc_prepare_gdc
 
 	# Must be called in src_prepare by EAPI6
 	eapply_user
@@ -438,10 +528,10 @@ toolchain_gcc_prepare_mpfr() {
 }
 
 
-toolchain_gcc_prepare_prereqs() {
-	local myprereq
-	for myprereq in gmp mpfr mpc isl ; do
-		_run_function_if_exists toolchain_gcc_prepare_${myprereq}
+toolchain_gcc_prepare_mathlibs() {
+	local mathlib
+	for mathlib in gmp mpfr mpc $(in_iuse graphite && usex graphite "isl" "") ; do
+		_run_function_if_exists toolchain_gcc_prepare_${mathlib}
 	done
 
 }
@@ -464,12 +554,12 @@ toolchain_gcc_prepare_harden() {
 	_run_function_if_exists toolchain_gcc_prepare_harden_${GCCMAJOR}
 
 	# Enable FORTIFY_SOURCE by default
-	use_in_iuse default_fortify && eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-fortify-source.patch )"
+	use_if_iuse default_fortify && eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-fortify-source.patch )"
 
-	if use_in_iuse dev_extra_warnings ; then
+	if use_if_iuse dev_extra_warnings ; then
 		eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-warn-format-security.patch* )"
 		eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-warn-trampolines.patch* )"
-		if use_in_iuse test ; then
+		if use_if_iuse test ; then
 			ewarn "USE=dev_extra_warnings enables warnings by default which are known to break gcc's tests!"
 		fi
 		einfo "Additional warnings enabled by default, this may break some tests and compilations with -Werror."
@@ -493,9 +583,9 @@ toolchain_gcc_prepare_harden_6_7() {
 		> "${T}/hardening-options.patch"
 	eapply "${T}/hardening-options.patch"
 	# Selectively enable features from hardening patches
-	use_in_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
-	use_in_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-	use_in_iuse sane_strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
+	use_if_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+	use_if_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
+	use_if_iuse sane_strict_overflow || gcc_hard_flags+=" -DSANE_FSTRICT_OVERFLOW"
 }
 
 toolchain_gcc_prepare_harden_6() {
@@ -517,9 +607,9 @@ toolchain_gcc_prepare_harden_8() {
 		> "${T}/hardening-options.patch"
 	eapply "${T}/hardening-options.patch"
 	# Selectively enable features from hardening patches
-	use_in_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
-	use_in_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
-	use_in_iuse stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+	use_if_iuse ssp_all && gcc_hard_flags+=" -DENABLE_DEFAULT_SSP_ALL"
+	use_if_iuse link_now && gcc_hard_flags+=" -DENABLE_DEFAULT_LINK_NOW"
+	use_if_iuse stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
 }
 
 toolchain_gcc_prepare_multilib() {
@@ -534,26 +624,10 @@ toolchain_gcc_conf_append() {
 }
 
 
-# These probably belong in full-toolchain-specific eclasses that are included based on which complete toolchain is being built
-
-toolchain_gcc_conf_for_newlib() {
-	local myconf=(
-		--with-newlib
-	)
-	toolchain_gcc_conf_append "${myconf[@]}"
-}
-
-toolchain_gcc_conf_for_glibc() {
-	local myconf=(
-		--enable-__cxa_atexit
-	)
-	toolchain_gcc_conf_append "${myconf[@]}"
-}
-
 
 toolchain_gcc_conf_harden() {
 	local myvtvenable="disable"
-	use_in_iuse vtv && myvtvenable="enable"
+	use_if_iuse vtv && myvtvenable="enable"
 
 	local myconf=(
 		$(in_iuse pie && use_enable pie default-pie)
@@ -579,8 +653,14 @@ toolchain_gcc_conf_crossbuild() {
 }
 
 
+###
+##
+## LIBC HANDLING
+##
+###
 
-# This is currently setup for crossdev tool, needs to be changed later to support non crossdev crosscompiler use.
+## libc checks
+
 _toolchain_libc_status() {
 	local my_target_libc="${1:-${TARGET_LIBC}}"
 	local my_libc_cat="sys-libs"
@@ -617,8 +697,24 @@ _toolchain_has_libc_none() {
 	[ "$(_toolchain_libc_status)" = "none" ]
 }
 
+# These probably belong in full-toolchain-specific eclasses that are included based on which complete toolchain is being built
+
+toolchain_gcc_conf_for_newlib() {
+	local myconf=(
+		--with-newlib
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_for_glibc() {
+	local myconf=(
+		--enable-__cxa_atexit
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
 
 
+## libc configuraiton
 
 toolchain_gcc_conf_nolibc() {
 	local myconf=(
@@ -644,7 +740,9 @@ toolchain_gcc_conf_libc_headers_only() {
 
 toolchain_gcc_conf_native() {
 	local myconf=()
-	if _toolchain_has_libc_none ; then
+	if use_if_iuse newlib ; then
+		toolchain_gcc_conf_for_newlib
+	elif _toolchain_has_libc_none ; then
 		toolchain_gcc_conf_nolibc
 	elif _toolchain_has_libc_headers_only ; then
 		toolchain_gcc_conf_libc_headers_only
@@ -655,7 +753,7 @@ toolchain_gcc_conf_native() {
 			--enable-libstdcxx-time
 			$(in_iuse openmp && use_enable openmp libgomp)
 			--enable-bootstrap
-			--enable-shared
+			#--enable-shared
 		)
 	fi
 
@@ -664,14 +762,14 @@ toolchain_gcc_conf_native() {
 
 toolchain_gcc_conf_crosscompiler() {
 	local myconf=()
-	if _toolchain_has_libc_none ; then
+	if use_if_iuse newlib ; then
+		toolchain_gcc_conf_for_newlib
+	elif _toolchain_has_libc_none ; then
 		toolchain_gcc_conf_nolibc
 	elif _toolchain_has_libc_headers_only ; then
 		toolchain_gcc_conf_libc_headers_only
 	else
 		myconf=(
-			--host=${CHOST}
-			--target=${CTARGET}
 			--enable-poison-system-directories
 		)
 	fi
@@ -777,9 +875,15 @@ toolchain_gcc_conf_multiarch() {
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
 
-toolchain_gcc_conf_multilib() {
+toolchain_gcc_conf_nomultiarch() {
 	local myconf=(
 		--disable-multiarch
+	)
+	toolchain_gcc_conf_append "${myconf[@]}"
+}
+
+toolchain_gcc_conf_multilib() {
+	local myconf=(
 		--enable-multilib
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
@@ -787,7 +891,6 @@ toolchain_gcc_conf_multilib() {
 
 toolchain_gcc_conf_nomultilib() {
 	local myconf=(
-		--disable-multiarch
 		--disable-multilib
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
@@ -858,15 +961,21 @@ toolchain_gcc_src_configure() {
 		toolchain_gcc_conf_native
 	fi
 
-	# Configure for multiarch, multilib, or nomultilib as requested
-	if in_iuse multilib && ! use multilib ; then
-		_run_function_if_exists toolchain_gcc_conf_nomultilib
-	elif use_if_iuse multiarch || ! in_iuse multiarch && toolchain_gcc_is_crosscompiler ; then
-		_run_function_if_exists toolchain_gcc_conf_multiarch
-	else
+	# Configure for multilib or nomultilib as requested
+	if use_if_iuse multilib ; then
 		_run_function_if_exists toolchain_gcc_conf_multilib
+	else
+		_run_function_if_exists toolchain_gcc_conf_nomultilib
 	fi
 
+	# Configure for multiarch if requested or if building a crosscompiler
+	if use_if_iuse multiarch || toolchain_gcc_is_crosscompiler ; then
+		_run_function_if_exists toolchain_gcc_conf_multiarch
+	else
+		_run_function_if_exists toolchain_gcc_conf_nomultiarch
+	fi
+
+	_run_function_if_exists toolchain_gcc_conf_for_${TARGET_LIBC}
 
 	local branding="Funtoo"
 	if use_if_iuse hardened; then
@@ -877,14 +986,18 @@ toolchain_gcc_src_configure() {
 
 	# Set up paths
 	local myconf=(
-		--with-python-dir=${DATAPATH/$PREFIX/}/python
 		--prefix=${PREFIX}
+	)
+	local blah=(
+		--exec-prefix=${EXEC_PREFIX}
 		--bindir=${BINPATH}
+		--libdir=${LIBPATH}/lib
 		--includedir=${LIBPATH}/include
 		--datadir=${DATAPATH}
 		--mandir=${DATAPATH}/man
 		--infodir=${DATAPATH}/info
 		--with-gxx-include-dir=${STDCXX_INCDIR}
+		--with-python-dir=${DATAPATH/$PREFIX/}/python
 	)
 
 	# Set other various config options (needs cleanup later)
@@ -893,13 +1006,45 @@ toolchain_gcc_src_configure() {
 		$(in_iuse pch && usex pch "" "--disable-libstdcxx-pch")
 		$(in_iuse graphite && usex graphite "--disable-isl-version-check" "")
 		--enable-clocale=gnu
-		--host=$CHOST
 		--disable-werror
 		--enable-lto
-		--with-system-zlib
 		--with-bugurl="http://bugs.funtoo.org"
-		--with-pkgversion="$branding"
+	#	--with-pkgversion="\"${branding}\""
 	)
+	
+	use_if_iuse system-zlib && myconf+=( --with-system-zlib )
+
+	# Set --build, --host, --target values as appropriate depending on if we're crossbuilding, building a crosscompiler, or crossbuilding a crosscompiler
+	if toolchain_gcc_is_canadiancross ; then
+		myconf+=(
+			--build=${CBUILD}
+			--host=${CHOST}
+			--target=${CTARGET}
+		)
+	elif toolchain_gcc_is_crossbuild ; then
+		myconf+=(
+			--build=${CBUILD}
+			--host=${CHOST}
+		)
+	elif toolchain_gcc_is_crosscompiler ; then
+		myconf+=(
+			--host=${CHOST}
+			--target=${CTARGET}
+		)
+	fi
+
+
+	if use_if_iuse bundle-binutils ; then
+		myconf+=(
+			--with-gnu-ld
+			#--enable-gold
+			--enable-ld=default
+			--with-gnu-as
+		)
+	fi
+
+	# Set default build configs if defined.
+	[ -n "${BUILD_CONFIG}" ] && myconf+=( --with-build-config="${BUILD_CONFIG}" )
 
 	# Configure internal self-checking
 	toolchain_gcc_conf_checking
@@ -907,10 +1052,10 @@ toolchain_gcc_src_configure() {
 
 	# This needs rewriting to account for host/build/target correctly
 	use generic_host || myconf+=(
-		${MARCH:+--with-arch=${MARCH}}
-		${MCPU:+--with-cpu=${MCPU}}
-		${MTUNE:+--with-tune=${MTUNE}}
-		${MFPU:+--with-fpu=${MFPU}}
+		${MARCH_FOR_TARGET:+--with-arch=${MARCH_FOR_TARGET}}
+		${MCPU_FOR_TARGET:+--with-cpu=${MCPU_FOR_TARGET}}
+		${MTUNE_FOR_TARGET:+--with-tune=${MTUNE_FOR_TARGET}}
+		${MFPU_FOR_TARGET:+--with-fpu=${MFPU_FOR_TARGET}}
 	)
 
 	# Configure arch-specific options
@@ -918,22 +1063,18 @@ toolchain_gcc_src_configure() {
 
 	# Configure multilingual support
 	if use_if_iuse nls ; then
-		myconf+=(
-			--enable-nls
-			--with-included-gettext
-		)
+		myconf+=( --enable-nls )
+		in_iuse system-gettext && ! use system-gettext && myconf+=( --with-included-gettext )
 	else
-		myconf+=(
-			--disable-nls
-		)
+		myconf+=( --disable-nls )
 	fi
 
 	# Add the above conf to our TOOLCHAIN_GCC_CONF
 	toolchain_gcc_conf_append "${myconf[@]}"
 
 	# Run the configuration step
-	printf -- '%s\n' "../gcc-${PV}/configure" "${TOOLCHAIN_GCC_CONF[@]}"
-	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure "${TOOLCHAIN_GCC_CONF[@]}" || die "configure fail"
+	printf -- '%s\n' "../gcc/configure" "${TOOLCHAIN_GCC_CONF[@]}"
+	cd ${WORKDIR}/objdir && env -i PATH="${PATH}" ../gcc/configure "${TOOLCHAIN_GCC_CONF[@]}" || die "configure fail"
 
 	# Run post-configure cleanups for crosscompilers
 	toolchain_gcc_is_crosscompiler && toolchain_gcc_postconf_crosscompiler
@@ -945,6 +1086,8 @@ toolchain_gcc_src_configure() {
 		:
 	elif use_if_iuse bootstrap-profiled ; then
 		TOOLCHAIN_GCC_TARGET="profiledbootstrap"
+	elif use_if_iuse bootstrap-lto || use_if_iuse bootstrap-O3 || use_if_iuse bootstrap ; then
+		TOOLCHAIN_GCC_TARGET="bootstrap"
 	fi
 
 	export TOOLCHAIN_GCC_TARGET
@@ -961,7 +1104,7 @@ toolchain_gcc_postconf_crosscompiler() {
 toolchain_gcc_src_compile_target() {
 	(	unset ABI P
 		export LIBPATH="${LIBPATH}"
-		emake ${1} || die "Failed to build target '${1}'."
+		env -i PATH="${PATH}" make ${1} || die "Failed to build target '${1}'."
 	)
 }
 
@@ -976,7 +1119,7 @@ toolchain_gcc_src_test() {
 	cd "${WORKDIR}/objdir"
 	unset ABI
 	local tests_failed=0
-	if toolchain_gcc_is_crosscompiler || tc-is-cross-compiler; then
+	if toolchain_gcc_is_crosscompiler ; then
 		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
 	else
 		( ulimit -s 65536 && ${MAKE:-make} ${MAKEOPTS} LIBPATH="${ED%/}/${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log ) || tests_failed=1

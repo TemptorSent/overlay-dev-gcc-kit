@@ -4,7 +4,7 @@
 
 EAPI=6
 
-inherit multilib-build eutils pax-utils toolchain-enable git-r3 toolchain-gcc
+inherit multilib-build eutils pax-utils git-r3 toolchain-gcc
 
 RESTRICT="strip"
 FEATURES=${FEATURES/multilib-strict/}
@@ -13,18 +13,21 @@ toolchain_gcc_version_setup
 
 IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
-IUSE="$IUSE doc nls vanilla hardened multilib multiarch" # docs/i18n/system flags
-IUSE="$IUSE openmp altivec graphite pch bootstrap-profiled generic_host" # Optimizations/features flags
+IUSE="$IUSE doc nls vanilla hardened +multilib +multiarch" # docs/i18n/system flags
+IUSE="$IUSE openmp altivec +graphite pch bootstrap-profiled generic_host" # Optimizations/features flags
 # bootstrap-lto is not currently working, disabled
 IUSE="$IUSE libssp +ssp +pie" # Base hardening flags
 IUSE="$IUSE +default_fortify +link_now +ssp_all vtv" # Extra hardening flags
 [ ${GCCMAJOR} -ge 8 ] && IUSE="$IUSE +stack_clash_protection" || IUSE="${IUSE} +sane_strict_overflow" # Stack clash protector added in gcc-8, strict overflow fixup dropped
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
-IUSE="$IUSE bootstrap-profiled"
+IUSE="$IUSE bootstrap-profiled bootstrap-lto bootstrap-O3 +bootstrap"
+
+# Note, system-zlib needs to be enabled for long-double-format multilib on PPC (-be only?)
+IUSE="$IUSE system-zlib system-mathlibs +system-gettext bundle-binutils newlib"
 
 SLOT="${GCC_RELEASE_VER}"
 
-S="${WORKDIR}/gcc-${GCC_RELEASE_VER}"
+S="${WORKDIR}/gcc"
 
 toolchain_gcc_get_src_uri
 
@@ -36,8 +39,8 @@ LICENSE="GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ gcc-runtime-library-excepti
 KEYWORDS="*"
 
 RDEPEND="
-	sys-libs/zlib[static-libs,${MULTILIB_USEDEP}]
-	nls? ( sys-devel/gettext[static-libs,${MULTILIB_USEDEP}] )
+	system-zlib? ( sys-libs/zlib[static-libs,${MULTILIB_USEDEP}] )
+	nls? ( system-gettext? ( sys-devel/gettext[static-libs,${MULTILIB_USEDEP}] ) )
 	virtual/libiconv[${MULTILIB_USEDEP}]
 	objc-gc? ( >=dev-libs/boehm-gc-7.6[static-libs,${MULTILIB_USEDEP}] )
 	!sys-devel/gcc:5.3
@@ -87,10 +90,6 @@ GENTOO_PATCHES=(
 	26_all_overridable_native.patch
 )
 
-
-tc-is-cross-compiler() {
-	[[ ${CBUILD:-${CHOST}} != ${CHOST} ]]
-}
 
 pkg_setup() {
 	toolchain_gcc_pkg_setup
@@ -255,7 +254,8 @@ src_install() {
 
 # MAKE INSTALL SECTION:
 
-	make -j1 DESTDIR="${D}" install || die
+	env -i PATH="${PATH}" make -j1 DESTDIR="${D}" install || die
+	return
 
 # POST MAKE INSTALL SECTION:
 	if toolchain_gcc_is_crosscompiler; then
