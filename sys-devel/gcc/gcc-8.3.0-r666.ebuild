@@ -14,7 +14,7 @@ toolchain_gcc_version_setup
 IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
 IUSE="$IUSE doc nls vanilla hardened +multilib +multiarch" # docs/i18n/system flags
-IUSE="$IUSE openmp altivec +graphite pch bootstrap-profiled generic_host" # Optimizations/features flags
+IUSE="$IUSE +lto +openmp altivec +graphite pch generic_host" # Optimizations/features flags
 # bootstrap-lto is not currently working, disabled
 IUSE="$IUSE libssp +ssp +pie" # Base hardening flags
 IUSE="$IUSE +default_fortify +link_now +ssp_all vtv" # Extra hardening flags
@@ -23,7 +23,7 @@ IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 IUSE="$IUSE bootstrap-profiled bootstrap-lto bootstrap-O3 +bootstrap"
 
 # Note, system-zlib needs to be enabled for long-double-format multilib on PPC (-be only?)
-IUSE="$IUSE system-zlib system-mathlibs +system-gettext bundle-binutils newlib"
+IUSE="$IUSE system-zlib system-mathlibs +system-gettext bundle-binutils bundle-gdb newlib"
 
 SLOT="${GCC_RELEASE_VER}"
 

@@ -126,6 +126,14 @@ toolchain_gcc_get_src_uri() {
 		export GCC_PREREQ_GMP GCC_PREREQ_MPFR GCC_PREREQ_MPC GCC_PREREQ_ISL
 	fi
 
+	if [ "${IUSE##*bundle-gdb*}" != "${IUSE}" ] ; then
+		: "${GCC_PREREQ_GDB:="gdb-8.2.1"}"
+		GCC_SRC_URI="${GCC_SRC_URI}
+			bundle-gdb? ( ftp://gcc.gnu.org/pub/gdb/releases/${GCC_PREREQ_GDB}.tar.xz )
+		"
+		export GCC_PREREQ_GDB
+	fi
+
 	if [ "${IUSE##*bundle-binutils*}" != "${IUSE}" ] ; then
 		: "${GCC_PREREQ_BINUTILS:="binutils-2.31.1"}"
 		GCC_SRC_URI="${GCC_SRC_URI}
@@ -133,6 +141,8 @@ toolchain_gcc_get_src_uri() {
 		"
 		export GCC_PREREQ_BINUTILS
 	fi
+
+	# To add: bison, dejagnu, flex, m4, elfutils, tcl, tk, expect, guile
 
 	if [ "${IUSE##*newlib*}" != "${IUSE}" ] ; then
 		: "${GCC_PREREQ_NEWLIB:="newlib-3.1.0"}"
@@ -159,7 +169,7 @@ toolchain_gcc_src_unpack() {
 
 	# Build the combined build tree
 	mkdir -p "${WORKDIR}/gcc"
-	for mydir in "${GCC_PREREQ_NEWLIB}" "${GCC_PREREQ_BINUTILS}" "gcc-${GCC_RELEASE_VER}" ; do
+	for mydir in "${GCC_PREREQ_NEWLIB}" "${GCC_PREREQ_GDB}" "${GCC_PREREQ_BINUTILS}" "gcc-${GCC_RELEASE_VER}" ; do
 		#[ -n "${mydir}" ] && [ -d "${WORKDIR}/${mydir}" ] && sh "${WORKDIR}/gcc-${GCC_RELEASE_VER}/symlink-tree" "${WORKDIR}/${mydir}"
 		if [ -n "${mydir}" ] && [ -d "${WORKDIR}/${mydir}" ] ; then
 			cd "${WORKDIR}/${mydir}" && find . -print | cpio -pdlmu ../gcc && cd -
@@ -402,8 +412,8 @@ toolchain_gcc_pkg_setup() {
 	unset GCC_SPECS # we don't want to use the installed compiler's specs to build gcc!
 	unset LANGUAGES #265283
 	#export PREFIX="${TOOLCHAIN_PREFIX:-${EPREFIX}/usr}"
-	export PREFIX="${TOOLCHAIN_PREFIX:-${EPREFIX}/usr/${CHOST}/gcc-${GCC_CONFIG_VER}}"
-	export EXEC_PREFIX="${TOOLCHAIN_EXEC_PREFIX:-${TOOLCHAIN_PREFIX}}"
+	export PREFIX="${TOOLCHAIN_PREFIX:=${EPREFIX}/usr/toolchains/${CTARGET}-gcc-${GCC_CONFIG_VER}}"
+	export EXEC_PREFIX="${TOOLCHAIN_EXEC_PREFIX:-${TOOLCHAIN_PREFIX}/${CHOST}}"
 	if false ; then
 		unset AR
 		unset AS
@@ -702,8 +712,13 @@ _toolchain_has_libc_none() {
 toolchain_gcc_conf_for_newlib() {
 	local myconf=(
 		--with-newlib
+		--without-headers
+		--disable-shared
+		--disable-threads
+		--disable-libgomp
 	)
 	toolchain_gcc_conf_append "${myconf[@]}"
+	export TOOLCHAIN_GCC_TARGET="all-gcc target-newlib all"
 }
 
 toolchain_gcc_conf_for_glibc() {
@@ -775,7 +790,7 @@ toolchain_gcc_conf_crosscompiler() {
 	fi
 
 	# If we have at least headers for libc installed, set sysroot path
-	_toolchain_has_libc_headers && myconf+=( --with-sysroot=${PREFIX}/${CTARGET} )
+	! use_if_iuse newlib && _toolchain_has_libc_headers && myconf+=( --with-sysroot=${PREFIX}/${CTARGET} )
 
 	toolchain_gcc_conf_append "${myconf[@]}"
 }
@@ -938,7 +953,7 @@ toolchain_gcc_conf_languages() {
 	use_if_iuse d && GCC_LANG+=",d"
 
 	# Enable LTO 'language'
-	GCC_LANG+=",lto"
+	use_if_iuse lto && GCC_LANG+=",lto"
 
 	conf_gcc_lang+=( --enable-languages=${GCC_LANG} )
 
@@ -987,9 +1002,9 @@ toolchain_gcc_src_configure() {
 	# Set up paths
 	local myconf=(
 		--prefix=${PREFIX}
+		--exec-prefix=${EXEC_PREFIX}
 	)
 	local blah=(
-		--exec-prefix=${EXEC_PREFIX}
 		--bindir=${BINPATH}
 		--libdir=${LIBPATH}/lib
 		--includedir=${LIBPATH}/include
@@ -1007,9 +1022,9 @@ toolchain_gcc_src_configure() {
 		$(in_iuse graphite && usex graphite "--disable-isl-version-check" "")
 		--enable-clocale=gnu
 		--disable-werror
-		--enable-lto
+		$(in_iuse lto && use_enable lto)
 		--with-bugurl="http://bugs.funtoo.org"
-	#	--with-pkgversion="\"${branding}\""
+		--with-pkgversion="${branding}"
 	)
 	
 	use_if_iuse system-zlib && myconf+=( --with-system-zlib )
@@ -1072,25 +1087,32 @@ toolchain_gcc_src_configure() {
 	# Add the above conf to our TOOLCHAIN_GCC_CONF
 	toolchain_gcc_conf_append "${myconf[@]}"
 
+
+	# Set our compilation target and bootstrapping.
+	if [ -n "${TOOLCHAIN_GCC_TARGET}" ] ; then
+		:
+	elif use_if_iuse bootstrap ; then
+		TOOLCHAIN_GCC_TARGET="bootstrap"
+		toolchain_gcc_conf_append "--enable-bootstrap"
+	elif use_if_iuse bootstrap-profiled ; then
+		TOOLCHAIN_GCC_TARGET="profiledbootstrap"
+		toolchain_gcc_conf_append "--enable-bootstrap"
+	elif use_if_iuse bootstrap-lto || use_if_iuse bootstrap-O3 || use_if_iuse bootstrap ; then
+		TOOLCHAIN_GCC_TARGET="bootstrap"
+		toolchain_gcc_conf_append "--enable-bootstrap"
+	else
+		TOOLCHAIN_GCC_TARGET="all"
+		toolchain_gcc_conf_append "--disable-bootstrap"
+	fi
+
+	export TOOLCHAIN_GCC_TARGET
+
 	# Run the configuration step
 	printf -- '%s\n' "../gcc/configure" "${TOOLCHAIN_GCC_CONF[@]}"
 	cd ${WORKDIR}/objdir && env -i PATH="${PATH}" ../gcc/configure "${TOOLCHAIN_GCC_CONF[@]}" || die "configure fail"
 
 	# Run post-configure cleanups for crosscompilers
 	toolchain_gcc_is_crosscompiler && toolchain_gcc_postconf_crosscompiler
-
-
-	# Set our compilation target.
-	TOOLCHAIN_GCC_TARGET="all"
-	if toolchain_gcc_is_crosscompiler ; then
-		:
-	elif use_if_iuse bootstrap-profiled ; then
-		TOOLCHAIN_GCC_TARGET="profiledbootstrap"
-	elif use_if_iuse bootstrap-lto || use_if_iuse bootstrap-O3 || use_if_iuse bootstrap ; then
-		TOOLCHAIN_GCC_TARGET="bootstrap"
-	fi
-
-	export TOOLCHAIN_GCC_TARGET
 }
 
 
