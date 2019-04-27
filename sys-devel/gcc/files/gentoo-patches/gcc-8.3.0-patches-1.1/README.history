@@ -1,5 +1,7 @@
-1.1		TODO
+1.1		06 Apr 2019
 	+ 26_all_overridable_native.patch
+	+ 27_all_flto-make-all.patch
+	+ 28_all_i386_retpoline-and-jumptable.patch
 
 1.0		22 Feb 2019
 	+ 01_all_default-fortify-source.patch
