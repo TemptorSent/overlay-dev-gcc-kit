@@ -45,8 +45,8 @@ GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
 SRC_URI="ftp://gcc.gnu.org/pub/gcc/releases/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_REV="270849"
-#GCC_SVN_REV=""
+#GCC_SVN_REV="270761"
+GCC_SVN_REV=""
 GCC_SVN_PATCH_NAME="gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
 #GCC_SVN_PATCH_URI="https://fastpull-us.funtoo.org/distfiles/${GCC_SVN_PATCH_NAME}"
 if [ -z "${GCC_SVN_PATCH_URI}" ]; then
@@ -114,10 +114,10 @@ GNAT64="gnat-gpl-2017-x86_64-linux-bin.tar.gz"
 SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror://funtoo/gcc/${GNAT32} ) )"
 
 # D support
-#DLANG_REPO_URI="https://github.com/D-Programming-GDC/GDC.git"
-#DLANG_BRANCH="gdc-${GCC_MAJOR}-stable"
-#DLANG_COMMIT_DATE="2018-08-26"
-#DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
+DLANG_REPO_URI="https://github.com/D-Programming-GDC/GDC.git"
+DLANG_BRANCH="gdc-${GCC_MAJOR}-stable"
+DLANG_COMMIT_DATE="2018-08-26"
+DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
 
@@ -217,8 +217,8 @@ src_unpack() {
 		fi
 	fi
 
-	# gdc D support -- now included in mainline
-	if false && use d ; then
+	# gdc D support
+	if use d ; then
 		O_EGIT_BRANCH="${EGIT_BRANCH}"
 		O_EGIT_COMMIT="${EGIT_COMMIT}"
 		O_EGIT_COMMIT_DATE="${EGIT_COMMIT_DATE}"
@@ -418,8 +418,6 @@ _gcc_prepare_gnat() {
 }
 
 _gcc_prepare_gdc() {
-	return 0
-	# Now included in mainline, below not needed
 	pushd "${DLANG_CHECKOUT_DIR}" > /dev/null || die "Could not change to GDC directory."
 
 		# Apply patches to the patches to account for gentoo patches modifications to configure changing line numbers
