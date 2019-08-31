@@ -13,11 +13,11 @@ GCC_MAJOR="${PV%%.*}"
 
 IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
-IUSE="$IUSE doc nls vanilla hardened multilib" # docs/i18n/system flags
+IUSE="$IUSE doc nls vanilla hardened +multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite pch generic_host" # Optimizations/features flags
 IUSE="$IUSE +bootstrap bootstrap-lean bootstrap-profiled bootstrap-lto bootstrap-O3" # Bootstrap flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
-IUSE="$IUSE +pie +vtv link_now ssp_all" # Extra hardening flags
+IUSE="$IUSE +pie -vtv +link_now ssp_all" # Extra hardening flags
 [ ${GCC_MAJOR} -ge 8 ] && IUSE="$IUSE +stack_clash_protection" # Stack clash protector added in gcc-8
 IUSE="$IUSE sanitize dev_extra_warnings" # Dev flags
 
@@ -45,7 +45,7 @@ GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
 SRC_URI="ftp://gcc.gnu.org/pub/gcc/releases/gcc-${GCC_ARCHIVE_VER}/${GCC_A}"
 
 # Backported fixes from gcc svn tree
-GCC_SVN_REV="274979"
+GCC_SVN_REV="275176"
 #GCC_SVN_REV=""
 GCC_SVN_PATCH_NAME="gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch"
 #GCC_SVN_PATCH_URI="https://fastpull-us.funtoo.org/distfiles/${GCC_SVN_PATCH_NAME}"
@@ -97,7 +97,7 @@ GMP_EXTRAVER=""
 SRC_URI="$SRC_URI mirror://gnu/gmp/gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz"
 
 MPFR_VER="4.0.2"
-MPFR_PATCH_VER=""
+MPFR_PATCH_VER="1"
 SRC_URI="$SRC_URI http://www.mpfr.org/mpfr-${MPFR_VER}/mpfr-${MPFR_VER}.tar.xz"
 MPFR_PATCH_FILE="${MPFR_PATCH_VER:+${FILESDIR}/mpfr/mpfr-${MPFR_VER}_to_${MPFR_VER}-p${MPFR_PATCH_VER}.patch}"
 
@@ -105,9 +105,8 @@ MPC_VER="1.1.0"
 SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
 
 # Graphite support:
-CLOOG_VER="0.18.4"
-ISL_VER="0.20"
-SRC_URI="$SRC_URI graphite? ( http://www.bastoul.net/cloog/pages/download/count.php3?url=./cloog-${CLOOG_VER}.tar.gz http://isl.gforge.inria.fr/isl-${ISL_VER}.tar.xz )"
+ISL_VER="0.21"
+SRC_URI="$SRC_URI graphite? ( http://isl.gforge.inria.fr/isl-${ISL_VER}.tar.xz )"
 
 # Ada Support:
 GNAT32="gnat-gpl-2014-x86-linux-bin.tar.gz"
@@ -231,7 +230,6 @@ src_unpack() {
 	( unpack gmp-${GMP_VER}${GMP_EXTRAVER}.tar.xz && mv ${WORKDIR}/gmp-${GMP_VER} ${S}/gmp ) || die "gmp setup fail"
 
 	if use graphite; then
-		( unpack cloog-${CLOOG_VER}.tar.gz && mv ${WORKDIR}/cloog-${CLOOG_VER} ${S}/cloog ) || die "cloog setup fail"
 		( unpack isl-${ISL_VER}.tar.xz && mv ${WORKDIR}/isl-${ISL_VER} ${S}/isl ) || die "isl setup fail"
 	fi
 
@@ -348,6 +346,7 @@ _gcc_prepare_harden() {
 	[ ${GCC_MAJOR} -eq 6 ] && _gcc_prepare_harden_7
 	[ ${GCC_MAJOR} -eq 7 ] && _gcc_prepare_harden_7
 	[ ${GCC_MAJOR} -eq 8 ] && _gcc_prepare_harden_8
+	[ ${GCC_MAJOR} -eq 9 ] && _gcc_prepare_harden_9
 
 	# Enable FORTIFY_SOURCE by default
 	eapply_gentoo "$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_default-fortify-source.patch )"
@@ -394,6 +393,20 @@ _gcc_prepare_harden_8() {
 		| sed \
 			-e 's/EXTRA_OPTIONS/ENABLE_DEFAULT_LINK_NOW/g' \
 			-e 's/ENABLE_ESP/ENABLE_DEFAULT_SCP/g' \
+		> "${T}/hardening-options.patch"
+	eapply "${T}/hardening-options.patch"
+	use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
+}
+
+_gcc_prepare_harden_9() {
+	# Modify gentoo patch to use our more specific hardening flags.
+	cat "${GENTOO_PATCHES_DIR}/$(set +f ; cd "${GENTOO_PATCHES_DIR}" && echo ??_all_extra-options.patch )" \
+		| sed \
+			-e '/+#ifdef EXTRA_OPTIONS/ {
+				N
+					/.*\n+#define DEFAULT_FLAG_SCP/ { s/EXTRA_OPTIONS/ENABLE_DEFAULT_SCP/ };
+					/.*\n+#define LINK_NOW_SPEC/ { s/EXTRA_OPTIONS/ENABLE_DEFAULT_LINK_NOW/ };
+				};' \
 		> "${T}/hardening-options.patch"
 	eapply "${T}/hardening-options.patch"
 	use stack_clash_protection && gcc_hard_flags+=" -DENABLE_DEFAULT_SCP"
@@ -574,8 +587,11 @@ src_configure() {
 	! use pch && confgcc+=" --disable-libstdcxx-pch"
 	use graphite && confgcc+=" --disable-isl-version-check"
 
-	use vtv && confgcc+=" --enable-vtable-verify --enable-libvtv"
-    ! use vtv && confgcc+=" --disable-vtable-verify --disable-libvtv"
+	if use vtv; then
+		confgcc+=" --enable-vtable-verify --enable-libvtv"
+    else
+		confgcc+=" --disable-vtable-verify --disable-libvtv"
+	fi
 
 	use libssp || export gcc_cv_libc_provides_ssp=yes
 
@@ -610,7 +626,7 @@ src_configure() {
 		--enable-secureplt \
 		--enable-lto \
 		--with-system-zlib \
-		$(use_with graphite cloog) \
+		$(use_with graphite isl) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \
 		$(gcc_checking_opts stage1) $(gcc_checking_opts) \
