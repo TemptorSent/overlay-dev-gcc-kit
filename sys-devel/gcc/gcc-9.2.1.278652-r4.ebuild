@@ -114,7 +114,7 @@ MPC_VER="1.1.0"
 SRC_URI="$SRC_URI http://ftp.gnu.org/gnu/mpc/mpc-${MPC_VER}.tar.gz"
 
 # Graphite support:
-ISL_VER="0.22"
+ISL_VER="0.21"
 SRC_URI="$SRC_URI graphite? ( http://isl.gforge.inria.fr/isl-${ISL_VER}.tar.xz )"
 
 # Ada Support:
