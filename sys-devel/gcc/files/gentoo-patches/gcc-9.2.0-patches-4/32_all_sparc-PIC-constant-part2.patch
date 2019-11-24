@@ -1,0 +1,310 @@
+https://gcc.gnu.org/PR92095
+https://bugs.gentoo.org/697708
+
+
+From 1a839ffee6ffae07948055a81051fad05a8c0b30 Mon Sep 17 00:00:00 2001
+From: ebotcazou <ebotcazou@138bc75d-0d04-0410-961f-82ee72b054a4>
+Date: Fri, 8 Nov 2019 12:33:48 +0000
+Subject: [PATCH] 	PR target/92095 	* config/sparc/sparc-protos.h
+ (output_load_pcrel_sym): Declare. 	* config/sparc/sparc.c
+ (sparc_cannot_force_const_mem): Revert latest  	change. 
+ (got_helper_needed): New static variable. 	(output_load_pcrel_sym): New
+ function. 	(get_pc_thunk_name): Remove after inlining... 
+ (load_got_register): ...here.  Rework the initialization of the GOT 
+ register and of the GOT helper. 	(save_local_or_in_reg_p): Test the
+ REGNO of the GOT register. 	(sparc_file_end): Test got_helper_needed to
+ decide whether the GOT 	helper must be emitted.  Use output_asm_insn
+ instead of fprintf. 	(sparc_init_pic_reg): In PIC mode, always initialize
+ the PIC register 	if optimization is enabled. 	*
+ config/sparc/sparc.md (load_pcrel_sym<P:mode>): Emit the assembly 	by
+ calling output_load_pcrel_sym.
+
+git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/branches/gcc-9-branch@277967 138bc75d-0d04-0410-961f-82ee72b054a4
+---
+ gcc/config/sparc/sparc-protos.h               |   1 +
+ gcc/config/sparc/sparc.c                      | 121 +++++++++++-------
+ gcc/config/sparc/sparc.md                     |   5 +-
+ .../gcc.c-torture/compile/20191108-1.c        |  14 ++
+ gcc/testsuite/gcc.target/sparc/overflow-3.c   |   2 +-
+ gcc/testsuite/gcc.target/sparc/overflow-4.c   |   2 +-
+ gcc/testsuite/gcc.target/sparc/overflow-5.c   |   2 +-
+
+--- a/gcc/config/sparc/sparc-protos.h
++++ b/gcc/config/sparc/sparc-protos.h
+@@ -69,6 +69,7 @@ extern void sparc_split_reg_mem (rtx, rtx, machine_mode);
+ extern void sparc_split_mem_reg (rtx, rtx, machine_mode);
+ extern int sparc_split_reg_reg_legitimate (rtx, rtx);
+ extern void sparc_split_reg_reg (rtx, rtx, machine_mode);
++extern const char *output_load_pcrel_sym (rtx *);
+ extern const char *output_ubranch (rtx, rtx_insn *);
+ extern const char *output_cbranch (rtx, rtx, int, int, int, rtx_insn *);
+ extern const char *output_return (rtx_insn *);
+--- a/gcc/config/sparc/sparc.c
++++ b/gcc/config/sparc/sparc.c
+@@ -4208,13 +4208,6 @@ eligible_for_sibcall_delay (rtx_insn *trial)
+ static bool
+ sparc_cannot_force_const_mem (machine_mode mode, rtx x)
+ {
+-  /* After IRA has run in PIC mode, it is too late to put anything into the
+-     constant pool if the PIC register hasn't already been initialized.  */
+-  if ((lra_in_progress || reload_in_progress)
+-      && flag_pic
+-      && !crtl->uses_pic_offset_table)
+-    return true;
+-
+   switch (GET_CODE (x))
+     {
+     case CONST_INT:
+@@ -4250,9 +4243,11 @@ sparc_cannot_force_const_mem (machine_mode mode, rtx x)
+ }
+ 
+ /* Global Offset Table support.  */
+-static GTY(()) rtx got_helper_rtx = NULL_RTX;
+-static GTY(()) rtx got_register_rtx = NULL_RTX;
+ static GTY(()) rtx got_symbol_rtx = NULL_RTX;
++static GTY(()) rtx got_register_rtx = NULL_RTX;
++static GTY(()) rtx got_helper_rtx = NULL_RTX;
++
++static GTY(()) bool got_helper_needed = false;
+ 
+ /* Return the SYMBOL_REF for the Global Offset Table.  */
+ 
+@@ -4265,27 +4260,6 @@ sparc_got (void)
+   return got_symbol_rtx;
+ }
+ 
+-#ifdef HAVE_GAS_HIDDEN
+-# define USE_HIDDEN_LINKONCE 1
+-#else
+-# define USE_HIDDEN_LINKONCE 0
+-#endif
+-
+-static void
+-get_pc_thunk_name (char name[32], unsigned int regno)
+-{
+-  const char *reg_name = reg_names[regno];
+-
+-  /* Skip the leading '%' as that cannot be used in a
+-     symbol name.  */
+-  reg_name += 1;
+-
+-  if (USE_HIDDEN_LINKONCE)
+-    sprintf (name, "__sparc_get_pc_thunk.%s", reg_name);
+-  else
+-    ASM_GENERATE_INTERNAL_LABEL (name, "LADDPC", regno);
+-}
+-
+ /* Wrapper around the load_pcrel_sym{si,di} patterns.  */
+ 
+ static rtx
+@@ -4305,30 +4279,78 @@ gen_load_pcrel_sym (rtx op0, rtx op1, rtx op2)
+   return insn;
+ }
+ 
++/* Output the load_pcrel_sym{si,di} patterns.  */
++
++const char *
++output_load_pcrel_sym (rtx *operands)
++{
++  if (flag_delayed_branch)
++    {
++      output_asm_insn ("sethi\t%%hi(%a1-4), %0", operands);
++      output_asm_insn ("call\t%a2", operands);
++      output_asm_insn (" add\t%0, %%lo(%a1+4), %0", operands);
++    }
++  else
++    {
++      output_asm_insn ("sethi\t%%hi(%a1-8), %0", operands);
++      output_asm_insn ("add\t%0, %%lo(%a1-4), %0", operands);
++      output_asm_insn ("call\t%a2", operands);
++      output_asm_insn (" nop", NULL);
++    }
++
++  if (operands[2] == got_helper_rtx)
++    got_helper_needed = true;
++
++  return "";
++}
++
++#ifdef HAVE_GAS_HIDDEN
++# define USE_HIDDEN_LINKONCE 1
++#else
++# define USE_HIDDEN_LINKONCE 0
++#endif
++
+ /* Emit code to load the GOT register.  */
+ 
+ void
+ load_got_register (void)
+ {
+-  if (!got_register_rtx)
+-    got_register_rtx = gen_rtx_REG (Pmode, GLOBAL_OFFSET_TABLE_REGNUM);
++  rtx insn;
+ 
+   if (TARGET_VXWORKS_RTP)
+-    emit_insn (gen_vxworks_load_got ());
++    {
++      if (!got_register_rtx)
++	got_register_rtx = pic_offset_table_rtx;
++
++      insn = gen_vxworks_load_got ();
++    }
+   else
+     {
++      if (!got_register_rtx)
++	got_register_rtx = gen_rtx_REG (Pmode, GLOBAL_OFFSET_TABLE_REGNUM);
++
+       /* The GOT symbol is subject to a PC-relative relocation so we need a
+ 	 helper function to add the PC value and thus get the final value.  */
+       if (!got_helper_rtx)
+ 	{
+ 	  char name[32];
+-	  get_pc_thunk_name (name, GLOBAL_OFFSET_TABLE_REGNUM);
++
++	  /* Skip the leading '%' as that cannot be used in a symbol name.  */
++	  if (USE_HIDDEN_LINKONCE)
++	    sprintf (name, "__sparc_get_pc_thunk.%s",
++		     reg_names[REGNO (got_register_rtx)] + 1);
++	  else
++	    ASM_GENERATE_INTERNAL_LABEL (name, "LADDPC",
++					 REGNO (got_register_rtx));
++
+ 	  got_helper_rtx = gen_rtx_SYMBOL_REF (Pmode, ggc_strdup (name));
+ 	}
+ 
+-      emit_insn (gen_load_pcrel_sym (got_register_rtx, sparc_got (),
+-				     got_helper_rtx));
++      insn
++	= gen_load_pcrel_sym (got_register_rtx, sparc_got (), got_helper_rtx);
+     }
++
++  emit_insn (insn);
+ }
+ 
+ /* Ensure that we are not using patterns that are not OK with PIC.  */
+@@ -5493,7 +5515,7 @@ save_local_or_in_reg_p (unsigned int regno, int leaf_function)
+     return true;
+ 
+   /* GOT register (%l7) if needed.  */
+-  if (regno == GLOBAL_OFFSET_TABLE_REGNUM && got_register_rtx)
++  if (got_register_rtx && regno == REGNO (got_register_rtx))
+     return true;
+ 
+   /* If the function accesses prior frames, the frame pointer and the return
+@@ -12536,10 +12558,9 @@ static void
+ sparc_file_end (void)
+ {
+   /* If we need to emit the special GOT helper function, do so now.  */
+-  if (got_helper_rtx)
++  if (got_helper_needed)
+     {
+       const char *name = XSTR (got_helper_rtx, 0);
+-      const char *reg_name = reg_names[GLOBAL_OFFSET_TABLE_REGNUM];
+ #ifdef DWARF2_UNWIND_INFO
+       bool do_cfi;
+ #endif
+@@ -12576,17 +12597,22 @@ sparc_file_end (void)
+ #ifdef DWARF2_UNWIND_INFO
+       do_cfi = dwarf2out_do_cfi_asm ();
+       if (do_cfi)
+-	fprintf (asm_out_file, "\t.cfi_startproc\n");
++	output_asm_insn (".cfi_startproc", NULL);
+ #endif
+       if (flag_delayed_branch)
+-	fprintf (asm_out_file, "\tjmp\t%%o7+8\n\t add\t%%o7, %s, %s\n",
+-		 reg_name, reg_name);
++	{
++	  output_asm_insn ("jmp\t%%o7+8", NULL);
++	  output_asm_insn (" add\t%%o7, %0, %0", &got_register_rtx);
++	}
+       else
+-	fprintf (asm_out_file, "\tadd\t%%o7, %s, %s\n\tjmp\t%%o7+8\n\t nop\n",
+-		 reg_name, reg_name);
++	{
++	  output_asm_insn ("add\t%%o7, %0, %0", &got_register_rtx);
++	  output_asm_insn ("jmp\t%%o7+8", NULL);
++	  output_asm_insn (" nop", NULL);
++	}
+ #ifdef DWARF2_UNWIND_INFO
+       if (do_cfi)
+-	fprintf (asm_out_file, "\t.cfi_endproc\n");
++	output_asm_insn (".cfi_endproc", NULL);
+ #endif
+     }
+ 
+@@ -13092,7 +13118,10 @@ sparc_init_pic_reg (void)
+   edge entry_edge;
+   rtx_insn *seq;
+ 
+-  if (!crtl->uses_pic_offset_table)
++  /* In PIC mode, we need to always initialize the PIC register if optimization
++     is enabled, because we are called from IRA and LRA may later force things
++     to the constant pool for optimization purposes.  */
++  if (!flag_pic || (!crtl->uses_pic_offset_table && !optimize))
+     return;
+ 
+   start_sequence ();
+--- a/gcc/config/sparc/sparc.md
++++ b/gcc/config/sparc/sparc.md
+@@ -1604,10 +1604,7 @@
+    (clobber (reg:P O7_REG))]
+   "REGNO (operands[0]) == INTVAL (operands[3])"
+ {
+-  if (flag_delayed_branch)
+-    return "sethi\t%%hi(%a1-4), %0\n\tcall\t%a2\n\t add\t%0, %%lo(%a1+4), %0";
+-  else
+-    return "sethi\t%%hi(%a1-8), %0\n\tadd\t%0, %%lo(%a1-4), %0\n\tcall\t%a2\n\t nop";
++  return output_load_pcrel_sym (operands);
+ }
+   [(set (attr "type") (const_string "multi"))
+    (set (attr "length")
+--- /dev/null
++++ b/gcc/testsuite/gcc.c-torture/compile/20191108-1.c
+@@ -0,0 +1,14 @@
++/* PR target/92095 */
++/* Testcase by Sergei Trofimovich <slyfox@inbox.ru> */
++
++typedef union {
++  double a;
++  int b[2];
++} c;
++
++double d(int e)
++{
++  c f;
++  (&f)->b[0] = 15728640;
++  return e ? -(&f)->a : (&f)->a;
++}
+--- a/gcc/testsuite/gcc.target/sparc/overflow-3.c
++++ b/gcc/testsuite/gcc.target/sparc/overflow-3.c
+@@ -1,6 +1,6 @@
+ /* { dg-do compile } */
+ /* { dg-require-effective-target lp64 } */
+-/* { dg-options "-O" } */
++/* { dg-options "-O -fno-pie" } */
+ 
+ #include <stdbool.h>
+ #include <stdint.h>
+--- a/gcc/testsuite/gcc.target/sparc/overflow-4.c
++++ b/gcc/testsuite/gcc.target/sparc/overflow-4.c
+@@ -1,6 +1,6 @@
+ /* { dg-do compile } */
+ /* { dg-require-effective-target lp64 } */
+-/* { dg-options "-O -mno-vis3 -mno-vis4" } */
++/* { dg-options "-O -fno-pie -mno-vis3 -mno-vis4" } */
+ 
+ #include <stdbool.h>
+ #include <stdint.h>
+--- a/gcc/testsuite/gcc.target/sparc/overflow-5.c
++++ b/gcc/testsuite/gcc.target/sparc/overflow-5.c
+@@ -1,6 +1,6 @@
+ /* { dg-do compile } */
+ /* { dg-require-effective-target lp64 } */
+-/* { dg-options "-O -mvis3" } */
++/* { dg-options "-O -fno-pie -mvis3" } */
+ 
+ #include <stdbool.h>
+ #include <stdint.h>
+-- 
+2.24.0
+

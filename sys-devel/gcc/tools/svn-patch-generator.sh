@@ -38,10 +38,11 @@ diff_out_dir="${1}";shift
 
 mkdir -p "${diff_out_dir}"
 
-GCC_SVN_REPO="http://gcc.gnu.org/svn/gcc"
+#GCC_SVN_REPO="http://gcc.gnu.org/svn/gcc"
+GCC_SVN_REPO="svn://gcc.gnu.org/svn/gcc"
 gcc_svn_diff_branch_since_release gcc-5-branch gcc_5_5_0_release "${diff_out_dir}"
 gcc_svn_diff_branch_since_release gcc-6-branch gcc_6_5_0_release "${diff_out_dir}"
-gcc_svn_diff_branch_since_release gcc-7-branch gcc_7_4_0_release "${diff_out_dir}"
+gcc_svn_diff_branch_since_release gcc-7-branch gcc_7_5_0_release "${diff_out_dir}"
 gcc_svn_diff_branch_since_release gcc-8-branch gcc_8_3_0_release "${diff_out_dir}"
 gcc_svn_diff_branch_since_release gcc-9-branch gcc_9_2_0_release "${diff_out_dir}"
 

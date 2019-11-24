@@ -1,0 +1,83 @@
+https://gcc.gnu.org/PR91472
+Fix gmp test suite failrues.
+
+From 0a09a00c87081e0a8d1d382b33bb0b1ec03875e7 Mon Sep 17 00:00:00 2001
+From: ebotcazou <ebotcazou@138bc75d-0d04-0410-961f-82ee72b054a4>
+Date: Sun, 1 Sep 2019 12:55:22 +0000
+Subject: [PATCH] 	PR target/91472 	* config/sparc/sparc.c
+ (sparc_cannot_force_const_mem): Return true 	during LRA/reload in PIC mode
+ if the PIC register hasn't been used yet. 	(sparc_pic_register_p): Test
+ reload_in_progress for consistency's sake.
+
+git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/trunk@275270 138bc75d-0d04-0410-961f-82ee72b054a4
+---
+ gcc/config/sparc/sparc.c                      |  9 ++++-
+ .../gcc.c-torture/execute/20190901-1.c        | 36 +++++++++++++++++++
+
+--- a/gcc/config/sparc/sparc.c
++++ b/gcc/config/sparc/sparc.c
+@@ -4201,6 +4201,13 @@ eligible_for_sibcall_delay (rtx_insn *trial)
+ static bool
+ sparc_cannot_force_const_mem (machine_mode mode, rtx x)
+ {
++  /* After IRA has run in PIC mode, it is too late to put anything into the
++     constant pool if the PIC register hasn't already been initialized.  */
++  if ((lra_in_progress || reload_in_progress)
++      && flag_pic
++      && !crtl->uses_pic_offset_table)
++    return true;
++
+   switch (GET_CODE (x))
+     {
+     case CONST_INT:
+@@ -4450,7 +4457,7 @@ sparc_pic_register_p (rtx x)
+     return true;
+ 
+   if (!HARD_REGISTER_P (pic_offset_table_rtx)
+-      && (HARD_REGISTER_P (x) || lra_in_progress)
++      && (HARD_REGISTER_P (x) || lra_in_progress || reload_in_progress)
+       && ORIGINAL_REGNO (x) == REGNO (pic_offset_table_rtx))
+     return true;
+ 
+--- /dev/null
++++ b/gcc/testsuite/gcc.c-torture/execute/20190901-1.c
+@@ -0,0 +1,36 @@
++/* PR target/91472 */
++/* Reported by John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de> */
++
++typedef unsigned int gmp_uint_least32_t;
++
++union ieee_double_extract
++{
++  struct
++    {
++      gmp_uint_least32_t sig:1;
++      gmp_uint_least32_t exp:11;
++      gmp_uint_least32_t manh:20;
++      gmp_uint_least32_t manl:32;
++    } s;
++  double d;
++};
++
++double __attribute__((noipa))
++tests_infinity_d (void)
++{
++  union ieee_double_extract x;
++  x.s.exp = 2047;
++  x.s.manl = 0;
++  x.s.manh = 0;
++  x.s.sig = 0;
++  return x.d;
++}
++
++int
++main (void)
++{
++  double x = tests_infinity_d ();
++  if (x == 0.0)
++    __builtin_abort ();
++  return 0;
++}
+-- 
+2.23.0
+

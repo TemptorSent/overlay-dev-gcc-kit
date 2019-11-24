@@ -1,0 +1,62 @@
+https://gcc.gnu.org/PR92504
+https://bugs.gentoo.org/699938
+
+From 5bf4317d82f5cb4c7360e6c9e5cbe8fa577583a3 Mon Sep 17 00:00:00 2001
+From: jakub <jakub@138bc75d-0d04-0410-961f-82ee72b054a4>
+Date: Tue, 19 Nov 2019 08:52:31 +0000
+Subject: [PATCH] 	PR c++/92504 	* semantics.c
+ (handle_omp_for_class_iterator): Don't call 	cp_fully_fold on cond.
+
+	* g++.dg/gomp/pr92504.C: New test.
+
+
+git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/trunk@278433 138bc75d-0d04-0410-961f-82ee72b054a4
+---
+ gcc/cp/semantics.c                  |  1 -
+ gcc/testsuite/g++.dg/gomp/pr92504.C | 29 +++++++++++++++++++++++++++++
+
+--- a/gcc/cp/semantics.c
++++ b/gcc/cp/semantics.c
+@@ -8434,7 +8434,6 @@ handle_omp_for_class_iterator (int i, location_t locus, enum tree_code code,
+   if (init && EXPR_HAS_LOCATION (init))
+     elocus = EXPR_LOCATION (init);
+ 
+-  cond = cp_fully_fold (cond);
+   switch (TREE_CODE (cond))
+     {
+     case GT_EXPR:
+--- /dev/null
++++ b/gcc/testsuite/g++.dg/gomp/pr92504.C
+@@ -0,0 +1,29 @@
++// PR c++/92504
++// { dg-do compile { target c++11 } }
++// { dg-additional-options "-O2" }
++
++namespace std {
++  typedef __SIZE_TYPE__ size_t;
++  typedef __PTRDIFF_TYPE__ ptrdiff_t;
++}
++
++struct A {
++  A ();
++  A (const A &);
++  A & operator++ ();
++  bool operator != (const A &) const;
++  std::ptrdiff_t operator - (const A &);
++  A & operator += (std::size_t);
++  int a;
++  A & begin ();
++  A & end ();				// { dg-message "declared here" }
++};
++
++void
++bar ()
++{
++  A a;
++  #pragma omp for
++  for (auto b = a; b != a.end; ++b)	// { dg-error "invalid use of non-static member function" }
++    ;
++}
+-- 
+2.24.0
+
