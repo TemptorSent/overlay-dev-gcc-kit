@@ -35,7 +35,7 @@ done
 
 
 # Version of archive before patches.
-GCC_ARCHIVE_VER="7.5.0"
+GCC_ARCHIVE_VER="8.3.0"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
@@ -54,6 +54,7 @@ fi
 SLOT="${PV3}"
 
 
+
 GCC_SVN_PATCH_NAME="${GCC_SVN_REV:+gcc-${GCC_ARCHIVE_VER}-to-svn-${GCC_SVN_REV}.patch}"
 #GCC_SVN_PATCH_URI="https://fastpull-us.funtoo.org/distfiles/${GCC_SVN_PATCH_NAME}"
 if [ -z "${GCC_SVN_PATCH_URI}" ]; then
@@ -66,9 +67,9 @@ fi
 GCC_SVN_PATCH="${GCC_SVN_REV:+${GCC_SVN_PATCH_PATH}/${GCC_SVN_PATCH_NAME}}"
 
 # Gentoo patcheset
-GENTOO_PATCHES_VER="1"
+GENTOO_PATCHES_VER="4"
 GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
-#GENTOO_GCC_PATCHES_VER="7.5.0"
+#GENTOO_GCC_PATCHES_VER="8.3.0"
 GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
 GENTOO_PATCHES=(
 	#01_all_default-fortify-source.patch
@@ -77,21 +78,31 @@ GENTOO_PATCHES=(
 	04_all_default-ssp-fix.patch
 	05_all_alpha-mieee-default.patch
 	06_all_ia64_note.GNU-stack.patch
-	07_all_libiberty-asprintf.patch
-	08_all_libiberty-pic.patch
-	09_all_nopie-all-flags.patch
-	#10_all_extra-options.patch
-	11_all_pr55930-dependency-tracking.patch
-	12_all_sh-drop-sysroot-suffix.patch
-	13_all_respect-build-cxxflags.patch
-	14_all_libgfortran-Werror.patch
-	15_all_libgomp-Werror.patch
-	16_all_libitm-Werror.patch
-	17_all_libatomic-Werror.patch
-	18_all_libbacktrace-Werror.patch
-	19_all_libsanitizer-libbacktrace-Werror.patch
-	20_all_libstdcxx-no-vtv.patch
-	21_all_lto-ctor-dtor-target.patch
+	07_all_i386_libgcc_note.GNU-stack.patch
+	08_all_libiberty-asprintf.patch
+	09_all_libiberty-pic.patch
+	10_all_nopie-all-flags.patch
+	#11_all_extra-options.patch
+	12_all_pr55930-dependency-tracking.patch
+	13_all_sh-drop-sysroot-suffix.patch
+	14_all_ia64-TEXTREL.patch
+	15_all_disable-systemtap-switch.patch
+	#16_all_sh_textrel-on-libitm.patch
+	17_all_m68k-textrel-on-libgcc.patch
+	18_all_respect-build-cxxflags.patch
+	19_all_libgfortran-Werror.patch
+	20_all_libgomp-Werror.patch
+	21_all_libitm-Werror.patch
+	22_all_libatomic-Werror.patch
+	23_all_libbacktrace-Werror.patch
+	24_all_libsanitizer-Werror.patch
+	25_all_libstdcxx-no-vtv.patch
+	#26_all_overridable_native.patch
+	#27_all_flto-make-all.patch
+	#28_all_i386_retpoline-and-jumptable.patch
+	#29_all_ia64-bootstrap.patch
+	#31_all_sparc-fpu-subregs-91269.patch
+	#32_all_disable-riscv32-ABIs.patch
 )
 
 # Math libraries:

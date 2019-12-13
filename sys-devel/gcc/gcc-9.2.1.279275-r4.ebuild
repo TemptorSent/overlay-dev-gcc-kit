@@ -35,7 +35,7 @@ done
 
 
 # Version of archive before patches.
-GCC_ARCHIVE_VER="7.5.0"
+GCC_ARCHIVE_VER="9.2.0"
 
 # GCC release archive
 GCC_A="gcc-${GCC_ARCHIVE_VER}.tar.xz"
@@ -66,9 +66,9 @@ fi
 GCC_SVN_PATCH="${GCC_SVN_REV:+${GCC_SVN_PATCH_PATH}/${GCC_SVN_PATCH_NAME}}"
 
 # Gentoo patcheset
-GENTOO_PATCHES_VER="1"
+GENTOO_PATCHES_VER="4"
 GENTOO_GCC_PATCHES_VER="${GCC_ARCHIVE_VER}"
-#GENTOO_GCC_PATCHES_VER="7.5.0"
+#GENTOO_GCC_PATCHES_VER="9.2.0"
 GENTOO_PATCHES_DIR="${FILESDIR}/gentoo-patches/gcc-${GENTOO_GCC_PATCHES_VER}-patches-${GENTOO_PATCHES_VER}"
 GENTOO_PATCHES=(
 	#01_all_default-fortify-source.patch
@@ -77,21 +77,32 @@ GENTOO_PATCHES=(
 	04_all_default-ssp-fix.patch
 	05_all_alpha-mieee-default.patch
 	06_all_ia64_note.GNU-stack.patch
-	07_all_libiberty-asprintf.patch
-	08_all_libiberty-pic.patch
-	09_all_nopie-all-flags.patch
-	#10_all_extra-options.patch
-	11_all_pr55930-dependency-tracking.patch
-	12_all_sh-drop-sysroot-suffix.patch
-	13_all_respect-build-cxxflags.patch
-	14_all_libgfortran-Werror.patch
-	15_all_libgomp-Werror.patch
-	16_all_libitm-Werror.patch
-	17_all_libatomic-Werror.patch
-	18_all_libbacktrace-Werror.patch
-	19_all_libsanitizer-libbacktrace-Werror.patch
-	20_all_libstdcxx-no-vtv.patch
-	21_all_lto-ctor-dtor-target.patch
+	07_all_i386_libgcc_note.GNU-stack.patch
+	08_all_libiberty-asprintf.patch
+	09_all_libiberty-pic.patch
+	10_all_nopie-all-flags.patch
+	#11_all_extra-options.patch
+	12_all_pr55930-dependency-tracking.patch
+	13_all_sh-drop-sysroot-suffix.patch
+	14_all_ia64-TEXTREL.patch
+	15_all_disable-systemtap-switch.patch
+	16_all_m68k-textrel-on-libgcc.patch
+	17_all_respect-build-cxxflags.patch
+	18_all_libgfortran-Werror.patch
+	19_all_libgomp-Werror.patch
+	20_all_libitm-Werror.patch
+	21_all_libatomic-Werror.patch
+	22_all_libbacktrace-Werror.patch
+	23_all_libsanitizer-Werror.patch
+	24_all_libstdcxx-no-vtv.patch
+	25_all_ia64-bootstrap.patch
+	26_all_disable-riscv32-ABIs.patch
+#	27_all_sparc-PIC-constant-PR91472.patch
+#	28_all_sparc-fpu-subregs-91269.patch
+#	29_all_mips_split_move-SEGV.patch
+#	30_all_arm64-march-native.patch
+#	31_all_openmp-for-SEGV.patch
+#	32_all_sparc-PIC-constant-part2.patch
 )
 
 # Math libraries:
@@ -178,7 +189,7 @@ pkg_setup() {
 	CTARGET=${CTARGET:-${CHOST}}
 	[[ ${CATEGORY} == cross-* ]] && CTARGET=${CATEGORY/cross-}
 	GCC_BRANCH_VER=${SLOT}
-	GCC_CONFIG_VER=${PV}
+	GCC_CONFIG_VER=${PV3}
 	DATAPATH=${PREFIX}/share/gcc-data/${CTARGET}/${GCC_CONFIG_VER}
 	if is_crosscompile; then
 		BINPATH=${PREFIX}/${CHOST}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}
