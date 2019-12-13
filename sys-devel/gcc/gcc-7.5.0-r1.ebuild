@@ -123,6 +123,7 @@ SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror:
 #DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
+HOMEPAGE="https://gcc.gnu.org/"
 
 LICENSE="GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ gcc-runtime-library-exception-3.1 ) FDL-1.3+"
 KEYWORDS="*"

@@ -13,7 +13,7 @@ GCC_MAJOR="${PV%%.*}"
 
 IUSE="ada +cxx d go +fortran objc objc++ objc-gc " # Languages
 IUSE="$IUSE test" # Run tests
-IUSE="$IUSE doc nls vanilla hardened +multilib" # docs/i18n/system flags
+IUSE="$IUSE doc nls system-gettext system-zlib vanilla hardened +multilib" # docs/i18n/system flags
 IUSE="$IUSE openmp altivec graphite pch generic_host" # Optimizations/features flags
 IUSE="$IUSE +bootstrap bootstrap-lean bootstrap-profiled bootstrap-lto bootstrap-O3" # Bootstrap flags
 IUSE="$IUSE libssp +ssp" # Base hardening flags
@@ -120,6 +120,7 @@ SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror:
 #DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
+HOMEPAGE="https://gcc.gnu.org/"
 
 LICENSE="GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ gcc-runtime-library-exception-3.1 ) FDL-1.3+"
 KEYWORDS="*"
@@ -603,7 +604,7 @@ src_configure() {
 	fi
 
 	confgcc+=" --with-python-dir=${DATAPATH/$PREFIX/}/python"
-	use nls && confgcc+=" --enable-nls --with-included-gettext" || confgcc+=" --disable-nls"
+	use nls && confgcc+=" --enable-nls $(usex system-gettext "--without" "--with")-included-gettext" || confgcc+=" --disable-nls"
 
 	use generic_host || confgcc+="${MARCH:+ --with-arch=${MARCH}}${MCPU:+ --with-cpu=${MCPU}}${MTUNE:+ --with-tune=${MTUNE}}${MFPU:+ --with-fpu=${MFPU}}"
 	P= cd ${WORKDIR}/objdir && ../gcc-${PV}/configure \
@@ -625,7 +626,7 @@ src_configure() {
 		--enable-libmudflap \
 		--enable-secureplt \
 		--enable-lto \
-		--with-system-zlib \
+		$(use_with system-zlib) \
 		$(use_with graphite isl) \
 		--with-bugurl=http://bugs.funtoo.org \
 		--with-pkgversion="$branding" \

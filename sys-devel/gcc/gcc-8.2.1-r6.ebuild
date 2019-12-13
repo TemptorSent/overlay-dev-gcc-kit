@@ -125,6 +125,7 @@ DLANG_COMMIT_DATE="2018-08-26"
 DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
+HOMEPAGE="https://gcc.gnu.org/"
 
 LICENSE="GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ gcc-runtime-library-exception-3.1 ) FDL-1.3+"
 KEYWORDS="*"

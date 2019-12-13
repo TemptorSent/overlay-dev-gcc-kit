@@ -129,6 +129,7 @@ SRC_URI="$SRC_URI ada? ( amd64? ( mirror://funtoo/gcc/${GNAT64} ) x86? ( mirror:
 #DLANG_CHECKOUT_DIR="${WORKDIR}/gdc"
 
 DESCRIPTION="The GNU Compiler Collection"
+HOMEPAGE="https://gcc.gnu.org/"
 
 LICENSE="GPL-3+ LGPL-3+ || ( GPL-3+ libgcc libstdc++ gcc-runtime-library-exception-3.1 ) FDL-1.3+"
 KEYWORDS="*"
@@ -666,7 +667,7 @@ src_test() {
 		ewarn "Running tests on simulator for cross-compiler not yet supported by this ebuild."
 	else
 		( ulimit -s 65536 && ${MAKE:-make} ${MAKEOPTS} LIBPATH="${ED%/}/${LIBPATH}" -k check RUNTESTFLAGS="-v -v -v" 2>&1 | tee ${T}/make-check-log ) || tests_failed=1
-		"../${S##*/}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
+		"${S}/contrib/test_summary" 2>&1 | tee "${T}/gcc-test-summary.out"
 		[ ${tests_failed} -eq 0 ] || die "make -k check failed"
 	fi
 }
